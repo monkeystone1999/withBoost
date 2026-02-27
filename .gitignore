@@ -1,0 +1,7 @@
+# Build and IDE
+build/
+.qtcreator/
+CMakeUserPresets.json
+commit.sh
+# Dependencies/Others
+ffmpeg*/
