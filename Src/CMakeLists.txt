@@ -5,6 +5,7 @@ project(PureCpp)
 find_package(nlohmann_json REQUIRED)
 find_package(boost_asio CONFIG REQUIRED)
 find_package(boost_system CONFIG REQUIRED)
+find_package(OpenSSL REQUIRED)
 qt_add_library(AnoMapSTD STATIC
     Thread/ThreadPool.hpp
     Thread/ThreadPool.cpp
@@ -15,19 +16,17 @@ qt_add_library(AnoMapSTD STATIC
     Network/Session.cpp
 )
 
-# FFmpeg configuration (assuming downloaded manually in project root)
-set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/ffmpeg-master-latest-win64-gpl-shared")
-
 target_include_directories(AnoMapSTD PRIVATE
-    ${FFMPEG_DIR}/include
+    ${FFmpeg_INCLUDE_DIR}
 )
 
-target_link_libraries(AnoMapSTD PRIVATE
+target_link_libraries(AnoMapSTD PUBLIC
     nlohmann_json::nlohmann_json
     Boost::asio
     Boost::system
-    ${FFMPEG_DIR}/lib/avcodec.lib
-    ${FFMPEG_DIR}/lib/avformat.lib
-    ${FFMPEG_DIR}/lib/avutil.lib
-    ${FFMPEG_DIR}/lib/swscale.lib
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    FFmpeg::avcodec
+    FFmpeg::avformat
+    FFmpeg::avutil
 )
