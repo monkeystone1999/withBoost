@@ -26,7 +26,7 @@ Window {
             agent.setSystemButton(WindowAgent.Maximize, titleBar.maximizeBtn);
             agent.setSystemButton(WindowAgent.Minimize, titleBar.minimizeBtn);
             // Option 버튼은 드래그 영역 제외
-            agent.setHitTestVisible(titleBar.optionBtn);
+            agent.setHitTestVisible(titleBar.menuBtn);
             agent.setHitTestVisible(titleBar.alarmBtn);
         }
     }
@@ -106,53 +106,147 @@ Window {
         }
     }
 
-    // 설정 오버레이 레이어 추가
-    Loader {
-        id: settingsOverlay
-        anchors.fill: parent
-        z: 100
-        source: active ? "views/SettingsPage.qml" : ""
-        active: false
-    }
+    // 사이드 네비게이션 패널
+    SideNavPanel {
+        id: sideNav
+        z: 50
+        currentPage: "Dashboard"
 
-    Connections {
-        target: settingsOverlay.item
-        function onRequestClose() {
-            settingsOverlay.active = false;
+        onRequestPage: (pageName) => {
+            switch (pageName) {
+            case "Dashboard":
+                // 이미 Dashboard면 스킵
+                stackView.replace(null, "views/DashboardPage.qml")
+                break
+            case "Settings":
+                stackView.push("views/SettingsPage.qml")
+                break
+            case "Alarms":
+                // 추후 AlarmPage 구현 예정
+                break
+            }
         }
     }
 
-    // Global Navigation Handler
+    // ── 전역 알람 레이어 ──────────────────────────────────────────────────────
+    Item {
+        id: alarmLayer
+        z: 200
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 20
+        anchors.bottomMargin: 20
+        width: 300
+        // 높이는 자식 카드들의 총합에 맞게 자동
+        height: parent.height
+        clip: false
+
+        // 알람 큐 (화면 초과 시 대기)
+        property var pendingQueue: []
+        // 현재 표시 중인 카드들의 총 높이 추적
+        property int totalDisplayedHeight: 0
+        readonly property int cardSpacing: 8
+        readonly property int maxDisplayHeight: root.height - titleBar.height - 40
+
+        // 현재 표시 카드 컨테이너 (아래서 위로 쌓임)
+        Column {
+            id: alarmColumn
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            spacing: alarmLayer.cardSpacing
+        }
+
+        // AlarmCard 동적 생성용 컴포넌트
+        Component {
+            id: alarmCardComponent
+            AlarmCard {
+                onDismissRequested: (id) => alarmLayer.removeAlarm(id)
+            }
+        }
+
+        // 알람 추가 함수
+        function addAlarm(title, detail, severity) {
+            var id = Date.now()
+            var estimatedHeight = 60 + cardSpacing
+
+            if (totalDisplayedHeight + estimatedHeight > maxDisplayHeight) {
+                // 화면 초과 — 큐에 저장
+                pendingQueue.push({ id: id, title: title, detail: detail, severity: severity })
+                return
+            }
+
+            var card = alarmCardComponent.createObject(alarmColumn, {
+                alarmId:     id,
+                alarmTitle:  title,
+                alarmDetail: detail,
+                severity:    severity
+            })
+
+            if (card) {
+                totalDisplayedHeight += estimatedHeight
+            }
+        }
+
+        // 알람 제거 함수
+        function removeAlarm(id) {
+            // alarmColumn 자식 탐색 후 제거
+            for (var i = 0; i < alarmColumn.children.length; i++) {
+                var child = alarmColumn.children[i]
+                if (child.alarmId === id) {
+                    totalDisplayedHeight -= (child.height + cardSpacing)
+                    if (totalDisplayedHeight < 0) totalDisplayedHeight = 0
+                    child.destroy()
+                    break
+                }
+            }
+            // 큐에서 다음 알람 꺼내기
+            if (pendingQueue.length > 0) {
+                var next = pendingQueue.shift()
+                pendingQueue = pendingQueue  // notify
+                addAlarm(next.title, next.detail, next.severity)
+            }
+        }
+    }
+
+    // 백엔드 알람 시그널 연결 (alarmManager 는 App.cpp 에서 context property 로 노출)
+    Connections {
+        target: typeof alarmManager !== "undefined" ? alarmManager : null
+        function onAlarmTriggered(title, detail, severity) {
+            alarmLayer.addAlarm(title, detail, severity)
+        }
+    }
+
+    // Global Navigation Handler (StackView pages)
     Connections {
         target: stackView.currentItem
         function onRequestPage(pageName) {
-            console.log("Navigation requested:", pageName);
+            console.log("Navigation requested:", pageName)
             switch (pageName) {
             case "Login":
-                stackView.push("views/LoginPage.qml");
-                break;
+                stackView.push("views/LoginPage.qml")
+                break
             case "Dashboard":
-                stackView.push("views/DashboardPage.qml");
-                break;
+                stackView.push("views/DashboardPage.qml")
+                break
             case "Signup":
-                stackView.push("views/SignupPage.qml");
-                break;
+                stackView.push("views/SignupPage.qml")
+                break
             case "Settings":
-                settingsOverlay.active = true; // push 대신 overlay 활성화
-                break;
+                stackView.push("views/SettingsPage.qml")
+                break
             case "Back":
-                stackView.pop();
-                break;
+                stackView.pop()
+                break
             default:
-                console.log("Unknown page:", pageName);
+                console.log("Unknown page:", pageName)
             }
         }
     }
 
     Connections {
-        target: titleBar.optionBtn
+        target: titleBar.menuBtn
         function onClicked() {
-            settingsOverlay.active = true;
+            sideNav.toggle()
         }
     }
 }

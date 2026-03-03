@@ -25,6 +25,9 @@ qt_add_qml_module(FrontEnd
         Component/InputText.qml
         Component/SampleComponent.qml
         Component/SystemButton.qml
+        Component/SideNavPanel.qml
+        Component/NavItem.qml
+        Component/AlarmCard.qml
         Theme/Icon.qml
         Theme/Theme.qml
         Theme/Typography.qml

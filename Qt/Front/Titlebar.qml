@@ -10,7 +10,7 @@ Item {
     property alias minimizeBtn: minimizeButton
     property alias maximizeBtn: maximizeButton
     property alias closeBtn: closeButton
-    property alias optionBtn: option
+    property alias menuBtn: menuButton
     property alias alarmBtn: alarm
     Rectangle {
         anchors.fill: parent
@@ -32,9 +32,38 @@ Item {
                 sourceSize.height: height
                 fillMode: Image.PreserveAspectFit
             }
-            SystemButton {
-                id: option
-                iconSource: Icon.option
+            // 햄버거 ≡ 메뉴 버튼
+            Rectangle {
+                id: menuButton
+                width: 46
+                height: 48
+                color: menuHover.containsMouse
+                       ? Theme.bgThird
+                       : Theme.bgPrimary
+                radius: 4
+                anchors.verticalCenter: parent.verticalCenter
+
+                Behavior on color {
+                    ColorAnimation { duration: 200 }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "≡"
+                    font.pixelSize: 24
+                    color: menuHover.containsMouse ? Theme.iconChange : Theme.iconColor
+                    Behavior on color { ColorAnimation { duration: 200 } }
+                }
+
+                MouseArea {
+                    id: menuHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: menuButton.clicked()
+                }
+
+                signal clicked()
             }
         }
         Text {
