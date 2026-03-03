@@ -4,7 +4,24 @@
   "dependencies": [
     "nlohmann-json",
     "boost-asio",
-    "boost-system"
+    "boost-system",
+    "openssl",
+    {
+      "name": "ffmpeg",
+      "features": [
+        "avcodec",
+        "avformat",
+        "avfilter",
+        "swscale",
+        "swresample"
+      ]
+    },
+    {
+      "name": "opencv4",
+      "features": [
+        "ffmpeg"
+      ]
+    }
   ],
   "builtin-baseline": "26283ac5e8a068561a718ce18b169bfad84c7dab"
 }

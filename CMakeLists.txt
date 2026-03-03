@@ -9,7 +9,48 @@ find_package(Qt6 REQUIRED COMPONENTS
     Quick Svg Core Qml QuickControls2 Network
 )
 
+# ===== FFmpeg =====
+# Bypass FindFFMPEG.cmake entirely — use find_library directly into the
+# vcpkg-managed installed directory and create proper imported targets.
+set(_FFmpeg_ROOT "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows")
+
+find_path(FFmpeg_INCLUDE_DIR
+    NAMES libavcodec/avcodec.h
+    PATHS "${_FFmpeg_ROOT}/include"
+    NO_DEFAULT_PATH
+    REQUIRED
+)
+
+foreach(_comp avcodec avformat avutil avfilter swscale swresample)
+    find_library(FFmpeg_${_comp}_LIB_RELEASE
+        NAMES ${_comp}
+        PATHS "${_FFmpeg_ROOT}/lib"
+        NO_DEFAULT_PATH REQUIRED
+    )
+    find_library(FFmpeg_${_comp}_LIB_DEBUG
+        NAMES ${_comp}
+        PATHS "${_FFmpeg_ROOT}/debug/lib"
+        NO_DEFAULT_PATH REQUIRED
+    )
+    add_library(FFmpeg::${_comp} IMPORTED STATIC GLOBAL)
+    set_target_properties(FFmpeg::${_comp} PROPERTIES
+        IMPORTED_LOCATION         "${FFmpeg_${_comp}_LIB_RELEASE}"
+        IMPORTED_LOCATION_RELEASE "${FFmpeg_${_comp}_LIB_RELEASE}"
+        IMPORTED_LOCATION_DEBUG   "${FFmpeg_${_comp}_LIB_DEBUG}"
+        INTERFACE_INCLUDE_DIRECTORIES "${FFmpeg_INCLUDE_DIR}"
+    )
+endforeach()
+
+
+
+# ===== OpenCV =====
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs highgui videoio)
+
 # ===== QWindowKit Configuration =====
+# Pass Qt6 prefix into QWindowKit's sub-builds (qmsetup uses ExternalProject
+# which spawns a separate cmake process that does not inherit CMAKE_PREFIX_PATH)
+set(Qt6_DIR "${CMAKE_PREFIX_PATH}/lib/cmake/Qt6" CACHE STRING "" FORCE)
+
 include(FetchContent)
 FetchContent_Declare(
     QWindowKit
@@ -47,7 +88,18 @@ target_link_libraries(AnoMap PRIVATE
     BackEnd
     AnoMapSTD
     FrontEnd
+    FrontEndplugin
+    FFmpeg::avcodec
+    FFmpeg::avformat
+    FFmpeg::avutil
+    FFmpeg::avfilter
+    FFmpeg::swscale
+    FFmpeg::swresample
+    ${OpenCV_LIBS}
 )
+
+# qt_import_qml_plugins 는 자동 생성이 필요해서 위에서 FrontEndplugin 직접 링크로 대체
+qt_import_qml_plugins(AnoMap)
 
 include(GNUInstallDirs)
 install(TARGETS AnoMap
