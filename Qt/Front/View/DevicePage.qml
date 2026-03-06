@@ -1,5 +1,6 @@
 ﻿import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import AnoMap.front
 
 Item {
@@ -19,100 +20,165 @@ Item {
             horizontalAlignment: Text.AlignHCenter
         }
 
-        ListView {
+        GridView {
+            id: grid
             anchors.fill: parent
             anchors.margins: 20
-            spacing: 16
+
+            // 반응형 컬럼 계산 (최소 크기 280)
+            property int cols: Math.max(1, Math.floor(width / 280))
+            cellWidth: width / cols
+            cellHeight: 420
+
             model: deviceModel
             clip: true
             visible: deviceModel.count > 0
 
-            delegate: Rectangle {
-                width: ListView.view.width
-                height: row.implicitHeight + 24
-                radius: 10
-                color: "#1a1a2e"
-                border.color: model.isOnline ? "#3a7f4a" : "#7f3a3a"
-                border.width: 1
+            delegate: Item {
+                width: grid.cellWidth
+                height: grid.cellHeight
+                visible: model.isOnline
 
-                Row {
-                    id: row
-                    anchors {
-                        left: parent.left
-                        right: parent.right
-                        top: parent.top
-                        margins: 12
-                    }
-                    spacing: 16
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.width - 20
+                    height: parent.height - 20
+                    radius: 12
+                    color: "#1e1e2e"
+                    border.color: model.isOnline ? "#4caf50" : "#f44336"
+                    border.width: 2
 
-                    Column {
-                        width: 220
-                        spacing: 6
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 8
 
-                        Text {
-                            text: model.title
-                            color: "white"
-                            font.pixelSize: 15
-                            font.bold: true
+                        // ── Header (Title & Status) ──
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: model.title
+                                color: "white"
+                                font.pixelSize: 18
+                                font.bold: true
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+                            Rectangle {
+                                width: 70
+                                height: 22
+                                radius: 11
+                                color: model.isOnline ? "#2e5c2e" : "#5c2e2e"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: model.isOnline ? "ONLINE" : "OFFLINE"
+                                    color: model.isOnline ? "#4caf50" : "#f44336"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+                            }
                         }
 
                         Text {
                             text: "IP: " + model.deviceIp
-                            color: "#8888aa"
-                            font.pixelSize: 11
+                            color: "#aab"
+                            font.pixelSize: 13
                         }
 
-                        Row {
-                            spacing: 6
-                            Badge { lbl: "Motor"; vis: model.hasMotor }
-                            Badge { lbl: "IR"; vis: model.hasIr }
-                            Badge { lbl: "Heater"; vis: model.hasHeater }
-                        }
-
+                        // ── Server Status Data ──
                         Rectangle {
-                            width: 80
-                            height: 22
-                            radius: 6
-                            color: model.isOnline ? "#224422" : "#442222"
+                            Layout.fillWidth: true
+                            implicitHeight: 65
+                            color: "#151520"
+                            radius: 8
+                            border.color: "#334"
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 2
+                                Text {
+                                    text: "CPU: " + serverStatus.deviceCpu(model.deviceIp).toFixed(1) + "%"
+                                    color: "#89a"
+                                    font.pixelSize: 12
+                                }
+                                Text {
+                                    text: "Mem: " + serverStatus.deviceMemory(model.deviceIp).toFixed(1) + "%"
+                                    color: "#89a"
+                                    font.pixelSize: 12
+                                }
+                                Text {
+                                    text: "Temp: " + serverStatus.deviceTemp(model.deviceIp).toFixed(1) + "°C"
+                                    color: "#89a"
+                                    font.pixelSize: 12
+                                }
+                            }
+                        }
 
-                            Text {
+                        // ── Badges ──
+                        Row {
+                            spacing: 8
+                            Layout.topMargin: 4
+                            Badge {
+                                lbl: "Motor"
+                                vis: model.hasMotor
+                            }
+                            Badge {
+                                lbl: "IR"
+                                vis: model.hasIr
+                            }
+                            Badge {
+                                lbl: "Heater"
+                                vis: model.hasHeater
+                            }
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                        } // spacer
+
+                        // ── Control Bar ──
+                        Item {
+                            Layout.fillWidth: true
+                            implicitHeight: ctrlLoader.item ? ctrlLoader.item.height : 260
+                            Loader {
+                                id: ctrlLoader
                                 anchors.centerIn: parent
-                                text: model.isOnline ? "ONLINE" : "OFFLINE"
-                                color: model.isOnline ? "#55ff77" : "#ff5555"
-                                font.pixelSize: 10
-                                font.bold: true
+                                active: true
+                                sourceComponent: DeviceControlBar {
+                                    deviceIp: model.deviceIp
+                                    hasMotor: model.hasMotor
+                                    hasIr: model.hasIr
+                                    hasHeater: model.hasHeater
+                                    // Override visual border/bg to match card seamlessly
+                                    color: "transparent"
+                                    border.color: "transparent"
+                                }
                             }
                         }
                     }
-
-                    DeviceControlBar {
-                        deviceIp: model.deviceIp
-                        hasMotor: model.hasMotor
-                        hasIr: model.hasIr
-                        hasHeater: model.hasHeater
-                        visible: true
-                    }
-                }
-
-                component Badge: Rectangle {
-                    property string lbl: ""
-                    property bool vis: false
-
-                    visible: vis
-                    width: badgeText.width + 10
-                    height: 18
-                    radius: 4
-                    color: "#2a2a4a"
-
-                    Text {
-                        id: badgeText
-                        anchors.centerIn: parent
-                        text: parent.lbl
-                        color: "#8899cc"
-                        font.pixelSize: 9
-                    }
                 }
             }
+        }
+    }
+
+    component Badge: Rectangle {
+        property string lbl: ""
+        property bool vis: false
+
+        visible: vis
+        width: badgeText.width + 12
+        height: 20
+        radius: 4
+        color: "#2a2a4a"
+        border.color: "#4a4a7a"
+
+        Text {
+            id: badgeText
+            anchors.centerIn: parent
+            text: parent.lbl
+            color: "#aaccff"
+            font.pixelSize: 10
+            font.bold: true
         }
     }
 }

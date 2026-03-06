@@ -81,13 +81,13 @@ Item {
 
                     // 오직 가로 길이(cols 개수)에만 맞춰서 크기 계산 (비율 4:3)
                     property int cols: root.itemsPerRow
-                    
+
                     // 여백을 고려하여 한 열에 최대로 들어갈 수 있는 너비 계산
                     property real maxW_byCol: parent.width / cols
 
                     // cellWidth를 가용 가능한 최대 너비로 설정 (단 최소 100)
                     cellWidth: Math.floor(Math.max(100, maxW_byCol))
-                    
+
                     // cellWidth에서 내부 margin 20을 빼고 4:3 비율(0.75 곱하기) 적용 후 다시 margin 20 더하기
                     cellHeight: Math.floor((cellWidth - 20) * 0.75 + 20)
 
@@ -122,11 +122,6 @@ Item {
                             ctrlVisible: root.activeCtrlUrl === model.rtspUrl
                             // 드래그 중이면 원본 카드 반투명
                             opacity: root.dragSourceIndex === delegateRoot.modelIndex ? 0.3 : 1.0
-                            Behavior on opacity {
-                                NumberAnimation {
-                                    duration: 150
-                                }
-                            }
 
                             onControlRequested: {
                                 if (root.activeCtrlUrl === model.rtspUrl) {
@@ -151,6 +146,21 @@ Item {
                                     overlayControlBar.visible = true;
                                 }
                             }
+
+                            onRightClicked: (sx, sy) => {
+                                overlayCtxMenu.targetUrl = model.rtspUrl;
+                                // sx, sy 는 CameraCard 내부 기준 좌표
+                                // 이걸 현재 화면(DashboardPage root) 기준으로 변환합니다.
+                                const local = root.mapFromItem(card, sx, sy);
+                                let mx = local.x, my = local.y;
+                                if (mx + overlayCtxMenu.width > root.width)
+                                    mx = root.width - overlayCtxMenu.width - 4;
+                                if (my + overlayCtxMenu.height > root.height)
+                                    my = root.height - overlayCtxMenu.height - 4;
+                                overlayCtxMenu.x = mx;
+                                overlayCtxMenu.y = my;
+                                overlayCtxMenu.visible = true;
+                            }
                         }
 
                         // ── DropArea: 다른 카드 위에 드롭 → URL 교환 ─────────────────
@@ -164,11 +174,6 @@ Item {
                                 color: Theme.hanwhaFirst
                                 radius: 8
                                 opacity: cardDrop.containsDrag && root.dragSourceIndex !== delegateRoot.modelIndex ? 0.25 : 0.0
-                                Behavior on opacity {
-                                    NumberAnimation {
-                                        duration: 100
-                                    }
-                                }
                             }
 
                             onDropped: drag => {
@@ -240,11 +245,6 @@ Item {
         border.width: 2
         opacity: root.dragSourceIndex >= 0 ? 0.7 : 0.0
         visible: opacity > 0
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 120
-            }
-        }
         Text {
             anchors.centerIn: parent
             text: root.dragSourceIndex >= 0 ? (cameraModel.data(cameraModel.index(root.dragSourceIndex, 0), 257) ?? "") : ""
@@ -313,6 +313,103 @@ Item {
         onCloseRequested: {
             visible = false;
             root.activeCtrlUrl = "";
+        }
+    }
+
+    // ── Context Menu (우클릭) ───────────────────────────────────────────────────
+
+    // 외부 클릭 캐치를 위한 보이지 않는 전역 오버레이
+    MouseArea {
+        anchors.fill: parent
+        z: 399
+        visible: overlayCtxMenu.visible
+        onClicked: overlayCtxMenu.visible = false
+    }
+
+    Rectangle {
+        id: overlayCtxMenu
+        visible: false
+        z: 400
+        width: 190
+        radius: 7
+        color: "#1e1e2e"
+        border.color: "#55aaaaff"
+        border.width: 1
+        height: ctxCol.implicitHeight + 12
+
+        property string targetUrl: ""
+
+        Column {
+            id: ctxCol
+            anchors {
+                left: parent.left
+                right: parent.right
+                top: parent.top
+                margins: 6
+            }
+            spacing: 2
+
+            CtxItem {
+                label: "Device 제어"
+                itemEnabled: deviceModel.hasDevice(overlayCtxMenu.targetUrl)
+                onTriggered: {
+                    root.activeCtrlUrl = overlayCtxMenu.targetUrl;
+                    overlayControlBar.x = Math.min(overlayCtxMenu.x + overlayCtxMenu.width + 8, root.width - overlayControlBar.width - 8);
+                    overlayControlBar.y = overlayCtxMenu.y;
+                    overlayControlBar.visible = true;
+                }
+            }
+            CtxItem {
+                label: "AI 제어"
+                itemEnabled: true
+                onTriggered: { /* AI 제어 추후 연결 */ }
+            }
+            Rectangle {
+                width: parent.width - 12
+                height: 1
+                color: "#33ffffff"
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+            CtxItem {
+                label: "Device 탭에서 보기"
+                itemEnabled: deviceModel.hasDevice(overlayCtxMenu.targetUrl)
+                onTriggered: root.requestPage("Device")
+            }
+            CtxItem {
+                label: "AI 탭에서 보기"
+                itemEnabled: true
+                onTriggered: root.requestPage("AI")
+            }
+        }
+    }
+
+    component CtxItem: Rectangle {
+        property string label: ""
+        property bool itemEnabled: true
+        signal triggered
+        width: parent.width
+        height: 32
+        radius: 4
+        color: itemEnabled && ma.containsMouse ? "#336688aa" : "transparent"
+        Text {
+            anchors {
+                left: parent.left
+                leftMargin: 12
+                verticalCenter: parent.verticalCenter
+            }
+            text: parent.label
+            color: parent.itemEnabled ? "white" : "#44556688"
+            font.pixelSize: 12
+        }
+        MouseArea {
+            id: ma
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: parent.itemEnabled
+            onClicked: {
+                overlayCtxMenu.visible = false;
+                parent.triggered();
+            }
         }
     }
 }
