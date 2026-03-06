@@ -46,6 +46,8 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   const AVCodec *codec = nullptr;
   int width = 0, height = 0;
   int prevTargetWidth = 0, prevTargetHeight = 0;
+  bool isSubPi = (url.find("SubPi") != std::string::npos ||
+                  url.find("192.168.0.58") != std::string::npos);
 
   av_log_set_callback(ffmpeg_log_callback);
   av_log_set_level(AV_LOG_DEBUG); // 상세 에러 추적을 위해 DEBUG 로 변경
@@ -65,22 +67,27 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   };
   m_formatCtx->interrupt_callback.opaque = &m_stopThread;
 
-  m_formatCtx->probesize = 5000000;
-  m_formatCtx->max_analyze_duration = 2000000;
+  m_formatCtx->probesize = 1000000;
+  m_formatCtx->max_analyze_duration = 1000000;
 
-  av_dict_set(&options, "rtsp_transport", "tcp", 0);
-  av_dict_set(&options, "rtsp_flags", "prefer_tcp", 0);
-  // 네트워크 포화 상태에서 패킷 지연 및 순서 혼용 방지를 위해 nobuffer 제거
-  // av_dict_set(&options, "fflags", "nobuffer", 0);
+  if (isSubPi) {
+    // 💡 라즈베리 파이(SUB_PI) 서버(또는 소형 서버) 다운을 방지하기 위해 UDP
+    // 스트리밍 사용 TCP 백프레셔로 인한 소형 서버의 메모리 초과를 완벽히 막아줌
+    av_dict_set(&options, "rtsp_transport", "udp", 0);
+  } else {
+    // 기업용 고성능 카메라는 연결 안정성(패킷 유실 방지)을 위해 TCP 및
+    // 저지연(low_delay) 옵션 유지
+    av_dict_set(&options, "rtsp_transport", "tcp", 0);
+    av_dict_set(&options, "rtsp_flags", "prefer_tcp", 0);
+    av_dict_set(&options, "flags", "low_delay", 0);
+  }
 
-  // 대신 깨진 프레임(corrupt)을 폐기하여 디코더 크래시 방지 및 0.5초(500000us)
-  // 지터 버퍼 허용
+  // 깨진 프레임(corrupt)을 폐기하여 디코더 크래시 방지 및 0.5초 지터 허용
   av_dict_set(&options, "fflags", "discardcorrupt", 0);
   av_dict_set(&options, "max_delay", "500000", 0);
 
-  av_dict_set(&options, "stimeout", "20000000", 0);
-  av_dict_set(&options, "buffer_size", "20000000",
-              0); // TCP 소켓 수신 최대 버퍼 증가
+  av_dict_set(&options, "stimeout", "5000000", 0);
+  av_dict_set(&options, "buffer_size", "2000000", 0);
 
   fprintf(stderr, "[Video] 스트림 연결 시도: %s\n", url.c_str());
 
@@ -124,6 +131,11 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
     m_codecCtx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
   }
   m_codecCtx->thread_count = 2;
+  if (!isSubPi) {
+    m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+  }
+  m_codecCtx->skip_loop_filter = AVDISCARD_ALL; // CPU 디코딩 연산 극적 감소
+  m_codecCtx->skip_frame = AVDISCARD_DEFAULT;
 
   if (avcodec_open2(m_codecCtx, codec, nullptr) < 0) {
     fprintf(stderr, "[Video] 코덱 오픈 실패\n");
