@@ -3,6 +3,7 @@
 #include "Qt/Back/DeviceModel.hpp"
 #include "Qt/Back/Login.hpp"
 #include "Qt/Back/NetworkBridge.hpp"
+#include "Qt/Back/ServerStatusModel.hpp"
 #include "Qt/Back/Signup.hpp"
 #include "Qt/Back/VideoManager.hpp"
 #include "Qt/Back/VideoSurfaceItem.hpp"
@@ -61,8 +62,13 @@ int main(int argc, char **argv) {
 
   DeviceModel *deviceModel = new DeviceModel(&engine);
   engine.rootContext()->setContextProperty("deviceModel", deviceModel);
-  QObject::connect(networkBridge, &NetworkBridge::deviceListReceived,
+  QObject::connect(networkBridge, &NetworkBridge::cameraListReceived,
                    deviceModel, &DeviceModel::refreshFromJson);
+
+  ServerStatusModel *serverStatus = new ServerStatusModel(&engine);
+  engine.rootContext()->setContextProperty("serverStatus", serverStatus);
+  QObject::connect(networkBridge, &NetworkBridge::deviceListReceived,
+                   serverStatus, &ServerStatusModel::refreshFromJson);
 
   qDebug() << "[App] DeviceModel registered";
 
@@ -98,8 +104,4 @@ int main(int argc, char **argv) {
   engine.loadFromModule("AnoMap.front", "Main");
 
   return app.exec();
-  // app.exec() 반환 → aboutToQuit 시그널 발생 → 위 람다 실행
-  // → videoManager, networkBridge 정리 완료
-  // → engine 소멸 → QObject 자식들 소멸
-  // → 프로세스 정상 종료
 }
