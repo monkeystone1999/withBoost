@@ -2,8 +2,14 @@ import QtQuick
 import QtQuick.Controls
 import AnoMap.front
 
-Button {
+AbstractButton {
     id: root
+    hoverEnabled: true
+
+    topPadding: 3
+    bottomPadding: 3
+    leftPadding: 5
+    rightPadding: 5
     contentItem: Text {
         text: root.text
         color: Theme.fontColor

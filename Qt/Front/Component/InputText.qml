@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import AnoMap.front
 
 TextField {
@@ -10,6 +10,7 @@ TextField {
     property bool isError: false
     property string errorText: ""
     property alias text: root.text
+    maximumLength: -1 // Explicitly allow unlimited characters to override potential IME limits
     font.pixelSize: 17
     // Layouts require implicit sizes or Layout attached properties
     implicitWidth: rowLength

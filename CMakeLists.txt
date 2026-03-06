@@ -10,36 +10,44 @@ find_package(Qt6 REQUIRED COMPONENTS
 )
 
 # ===== FFmpeg =====
-# Bypass FindFFMPEG.cmake entirely — use find_library directly into the
-# vcpkg-managed installed directory and create proper imported targets.
-set(_FFmpeg_ROOT "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+find_package(FFmpeg REQUIRED)
+include(SelectLibraryConfigurations)
 
-find_path(FFmpeg_INCLUDE_DIR
-    NAMES libavcodec/avcodec.h
-    PATHS "${_FFmpeg_ROOT}/include"
-    NO_DEFAULT_PATH
-    REQUIRED
-)
+function(anomap_ensure_ffmpeg_target component)
+    if(TARGET FFmpeg::${component})
+        return()
+    endif()
 
-foreach(_comp avcodec avformat avutil avfilter swscale swresample)
-    find_library(FFmpeg_${_comp}_LIB_RELEASE
-        NAMES ${_comp}
-        PATHS "${_FFmpeg_ROOT}/lib"
-        NO_DEFAULT_PATH REQUIRED
-    )
-    find_library(FFmpeg_${_comp}_LIB_DEBUG
-        NAMES ${_comp}
-        PATHS "${_FFmpeg_ROOT}/debug/lib"
-        NO_DEFAULT_PATH REQUIRED
-    )
-    add_library(FFmpeg::${_comp} IMPORTED STATIC GLOBAL)
-    set_target_properties(FFmpeg::${_comp} PROPERTIES
-        IMPORTED_LOCATION         "${FFmpeg_${_comp}_LIB_RELEASE}"
-        IMPORTED_LOCATION_RELEASE "${FFmpeg_${_comp}_LIB_RELEASE}"
-        IMPORTED_LOCATION_DEBUG   "${FFmpeg_${_comp}_LIB_DEBUG}"
-        INTERFACE_INCLUDE_DIRECTORIES "${FFmpeg_INCLUDE_DIR}"
-    )
-endforeach()
+    set(_var "FFmpeg_${component}")
+    find_library(${_var}_LIBRARY_RELEASE NAMES ${component})
+    find_library(${_var}_LIBRARY_DEBUG NAMES ${component}d ${component})
+    select_library_configurations(${_var})
+
+    if(${_var}_LIBRARY)
+        add_library(FFmpeg::${component} UNKNOWN IMPORTED)
+        if(${_var}_LIBRARY_RELEASE)
+            set_property(TARGET FFmpeg::${component} APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)
+            set_target_properties(FFmpeg::${component} PROPERTIES
+                IMPORTED_LOCATION_RELEASE "${${_var}_LIBRARY_RELEASE}"
+            )
+        endif()
+        if(${_var}_LIBRARY_DEBUG)
+            set_property(TARGET FFmpeg::${component} APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
+            set_target_properties(FFmpeg::${component} PROPERTIES
+                IMPORTED_LOCATION_DEBUG "${${_var}_LIBRARY_DEBUG}"
+            )
+        endif()
+        if(DEFINED FFMPEG_INCLUDE_DIRS)
+            set_target_properties(FFmpeg::${component} PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${FFMPEG_INCLUDE_DIRS}"
+            )
+        endif()
+    endif()
+endfunction()
+
+anomap_ensure_ffmpeg_target(swscale)
+anomap_ensure_ffmpeg_target(swresample)
 
 
 
@@ -47,19 +55,7 @@ endforeach()
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs highgui videoio)
 
 # ===== QWindowKit Configuration =====
-# Pass Qt6 prefix into QWindowKit's sub-builds (qmsetup uses ExternalProject
-# which spawns a separate cmake process that does not inherit CMAKE_PREFIX_PATH)
-set(Qt6_DIR "${CMAKE_PREFIX_PATH}/lib/cmake/Qt6" CACHE STRING "" FORCE)
-
-include(FetchContent)
-FetchContent_Declare(
-    QWindowKit
-    GIT_REPOSITORY https://github.com/stdware/qwindowkit.git
-    GIT_TAG        1.5.0
-)
-
-set(QWINDOWKIT_BUILD_QUICK ON CACHE BOOL "Build QWindowKit Quick module" FORCE)
-FetchContent_MakeAvailable(QWindowKit)
+include(SetupQWindowKit)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -92,7 +88,6 @@ target_link_libraries(AnoMap PRIVATE
     FFmpeg::avcodec
     FFmpeg::avformat
     FFmpeg::avutil
-    FFmpeg::avfilter
     FFmpeg::swscale
     FFmpeg::swresample
     ${OpenCV_LIBS}

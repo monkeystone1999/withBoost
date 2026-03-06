@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import AnoMap.front
 
 // 좌측 슬라이드 사이드 네비게이션 패널
@@ -14,9 +15,15 @@ Item {
 
     property bool isOpen: false
 
-    function open()   { isOpen = true  }
-    function close()  { isOpen = false }
-    function toggle() { isOpen = !isOpen }
+    function open() {
+        isOpen = true;
+    }
+    function close() {
+        isOpen = false;
+    }
+    function toggle() {
+        isOpen = !isOpen;
+    }
 
     anchors.fill: parent
     enabled: isOpen
@@ -26,12 +33,15 @@ Item {
         anchors.fill: parent
         color: "#000000"
         opacity: root.isOpen ? 0.45 : 0.0
+        visible: opacity > 0 // Opacity가 0보다 클 때만 렌더링되게 하여 클릭 흡수 방지
         Behavior on opacity {
-            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: 220
+                easing.type: Easing.OutCubic
+            }
         }
         MouseArea {
             anchors.fill: parent
-            enabled: root.isOpen
             onClicked: root.close()
         }
     }
@@ -45,7 +55,10 @@ Item {
         color: Theme.bgSecondary
 
         Behavior on x {
-            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: 250
+                easing.type: Easing.OutCubic
+            }
         }
 
         // 오른쪽 경계선
@@ -102,8 +115,26 @@ Item {
             // ── 메인 메뉴 항목 ────────────────────────────────────────────────
             Repeater {
                 model: [
-                    { label: "Dashboard", icon: "▦", page: "Dashboard" },
-                    { label: "Alarms",    icon: "🔔", page: "Alarms"   }
+                    {
+                        label: "Home",
+                        icon: "▦",
+                        page: "Home"
+                    },
+                    {
+                        label: "AI",
+                        icon: "🤖",
+                        page: "AI"
+                    },
+                    {
+                        label: "Device",
+                        icon: "📷",
+                        page: "Device"
+                    },
+                    {
+                        label: "MyPage",
+                        icon: "👤",
+                        page: "MyPage"
+                    }
                 ]
                 delegate: NavItem {
                     Layout.fillWidth: true
@@ -111,14 +142,16 @@ Item {
                     iconChar: modelData.icon
                     isActive: root.currentPage === modelData.page
                     onClicked: {
-                        root.currentPage = modelData.page
-                        root.requestPage(modelData.page)
-                        root.close()
+                        root.currentPage = modelData.page;
+                        root.requestPage(modelData.page);
+                        root.close();
                     }
                 }
             }
 
-            Item { Layout.fillHeight: true }
+            Item {
+                Layout.fillHeight: true
+            }
 
             // 구분선
             Rectangle {
@@ -131,16 +164,114 @@ Item {
                 color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
             }
 
-            // ── 하단: Settings ────────────────────────────────────────────────
-            NavItem {
+            // ── 하단: Logout & Option (Settings) ────────────────────────────────
+            RowLayout {
                 Layout.fillWidth: true
-                label: "Settings"
-                iconChar: "⚙"
-                isActive: root.currentPage === "Settings"
-                onClicked: {
-                    root.currentPage = "Settings"
-                    root.requestPage("Settings")
-                    root.close()
+                Layout.preferredHeight: 56
+                spacing: 0
+
+                // Logout Button
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+                    color: logoutHover.containsMouse ? (Theme.isDark ? "#3A3A3C" : "#E5E5EA") : "transparent"
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "🚪"
+                            font.pixelSize: 18
+                            color: Theme.fontColor
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Logout"
+                            font.family: Typography.fontFamilySecondary
+                            font.pixelSize: Typography.thirdFont
+                            color: Theme.fontColor
+                        }
+                    }
+
+                    MouseArea {
+                        id: logoutHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (typeof loginController !== "undefined" && loginController !== null) {
+                                loginController.logout();
+                            }
+                            if (typeof videoManager !== "undefined" && videoManager !== null) {
+                                videoManager.clearAll();
+                            }
+                            root.currentPage = "Login";
+                            root.requestPage("Login");
+                            root.close();
+                        }
+                    }
+                }
+
+                // 중앙 구분선
+                Rectangle {
+                    Layout.preferredHeight: 24
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 1
+                    color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
+                }
+
+                // Option Button
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+                    color: optHover.containsMouse ? (Theme.isDark ? "#3A3A3C" : "#E5E5EA") : "transparent"
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+
+                        Item {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 20
+                            height: 20
+                            Image {
+                                id: optIcon
+                                anchors.fill: parent
+                                source: Icon.option
+                                sourceSize.width: 20
+                                sourceSize.height: 20
+                                visible: true
+                                layer.enabled: true
+                            }
+                            MultiEffect {
+                                anchors.fill: optIcon
+                                source: optIcon
+                                colorization: 1.0
+                                colorizationColor: Theme.fontColor
+                            }
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Option"
+                            font.family: Typography.fontFamilySecondary
+                            font.pixelSize: Typography.thirdFont
+                            color: Theme.fontColor
+                        }
+                    }
+
+                    MouseArea {
+                        id: optHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.currentPage = "Settings";
+                            root.requestPage("Settings");
+                            root.close();
+                        }
+                    }
                 }
             }
         }

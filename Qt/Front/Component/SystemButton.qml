@@ -1,18 +1,18 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Basic
 import QtQuick.Effects
 import AnoMap.front
 
 // QWindowKit Snap Layout 호환을 위해 MouseArea 대신 Button 사용
 // (QWindowKit 공식 예제 QWKButton 패턴과 동일)
-Button {
+AbstractButton {
     id: root
     width: 46
     height: 48
+    hoverEnabled: true
 
     property int duration: 400
-    property string iconSource: ""
+    property url iconSource
     property color bgColor: Theme.bgPrimary   // 'background' 는 Button 내장 프로퍼티라 이름 변경
     property color hoverIconChange: Theme.iconChange
     property bool isClose: false
@@ -52,15 +52,9 @@ Button {
         Image {
             id: iconImage
             anchors.centerIn: parent
-            visible: false  // MultiEffect 가 렌더링하므로 숨김
-            source: {
-                if (root.iconSource === "")
-                    return "";
-                if (root.iconSource.toString().indexOf("image://") === 0)
-                    return root.iconSource;
-                var colorString = Theme.iconColor.toString();
-                return "image://svg" + root.iconSource + "?color=" + colorString;
-            }
+            visible: true
+            layer.enabled: true
+            source: root.iconSource
             sourceSize.width: 33
             sourceSize.height: 33
             fillMode: Image.PreserveAspectFit

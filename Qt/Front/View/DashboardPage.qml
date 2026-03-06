@@ -1,203 +1,318 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 import AnoMap.front
-import AnoMap.back
 
 Item {
     id: root
-
     signal requestPage(string pageName)
 
-    // ── 드래그 상태 추적 ─────────────────────────────────────────────────────
-    // 현재 드래그 중인 카드의 모델 인덱스 (-1 = 없음)
-    property int  dragSourceIndex: -1
+    property int dragSourceIndex: -1
     property real dragGhostX: 0
     property real dragGhostY: 0
-
-    // 카드당 생성된 CameraWindow 수 추적 { index: count }
     property var windowCountMap: ({})
+    property string activeCtrlUrl: ""
+    property int itemsPerRow: 4 // 1행당 보여줄 카드 수 (기본 4개)
 
+    // ── newWindowArea: Outer Shell ──────────────────────────────────────────
     Rectangle {
+        id: newWindowArea
         anchors.fill: parent
-        color: Theme.bgPrimary
 
-        // ── 그리드 ────────────────────────────────────────────────────────────
-        GridView {
-            id: cameraGrid
-            anchors.fill: parent
-            anchors.margins: 20
+        // ── Layout Control ──────────────────────────────────────────────────────
+        Row {
+            z: 10
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.topMargin: 10
+            anchors.leftMargin: 40
+            spacing: 10
 
-            cellWidth:  340   // 320 + 20 여백
-            cellHeight: 260   // 240 + 20 여백
+            Text {
+                text: "Grid Columns :"
+                color: "white"
+                font.pixelSize: 14
+                anchors.verticalCenter: parent.verticalCenter
+            }
 
-            model: cameraModel
+            Repeater {
+                model: [2, 3, 4, 5, 6]
+                delegate: Rectangle {
+                    width: 30
+                    height: 24
+                    radius: 4
+                    color: root.itemsPerRow === modelData ? Theme.hanwhaFirst : "#333333"
+                    border.color: "#555555"
+                    border.width: 1
 
-            clip: true
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData
+                        color: "white"
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
 
-            delegate: Item {
-                id: delegateRoot
-                width:  cameraGrid.cellWidth
-                height: cameraGrid.cellHeight
-
-                // 모델 인덱스 캡처
-                readonly property int modelIndex: index
-
-                // ── 카드 ──────────────────────────────────────────────────────
-                CameraCard {
-                    id: card
-                    anchors.centerIn: parent
-                    title:    model.title
-                    rtspUrl:  model.rtspUrl
-                    isOnline: model.isOnline
-
-                    // 현재 이 카드가 drag 소스이면 반투명
-                    opacity: root.dragSourceIndex === delegateRoot.modelIndex ? 0.3 : 1.0
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                }
-
-                // ── DropArea: 다른 카드를 이 위에 드랍하면 URL 교환 ──────────
-                DropArea {
-                    id: dropArea
-                    anchors.fill: parent
-                    keys: ["cameraCard"]
-
-                    // hover 표시
-                    Rectangle {
+                    MouseArea {
                         anchors.fill: parent
-                        color: Theme.hanwhaFirst
-                        opacity: dropArea.containsDrag
-                                 && root.dragSourceIndex !== delegateRoot.modelIndex
-                                 ? 0.25 : 0.0
-                        radius: 8
-                        Behavior on opacity { NumberAnimation { duration: 100 } }
-                    }
-
-                    onDropped: (drag) => {
-                        var srcIdx = drag.source.dragIndex
-                        var dstIdx = delegateRoot.modelIndex
-                        if (srcIdx !== dstIdx && srcIdx >= 0) {
-                            cameraModel.swapCameraUrls(srcIdx, dstIdx)
-                        }
-                        root.dragSourceIndex = -1
+                        onClicked: root.itemsPerRow = modelData
                     }
                 }
+            }
+        }
 
-                // ── DragArea: 카드를 잡아서 드래그 ──────────────────────────
-                Item {
-                    id: dragSource
+        // ── swapWindowArea: Inner Container ─────────────────────────────────────
+        Rectangle {
+            id: swapWindowArea
+            anchors.fill: parent
+            anchors.margins: 40
+            anchors.topMargin: 45 // Layout Control을 위한 여백 추가
+            color: Theme.bgPrimary
+            border.color: root.dragSourceIndex >= 0 ? "#5588ccff" : "#22ffffff"
+            border.width: 1
+
+            Item {
+                id: gridContainer
+                anchors.fill: parent
+                anchors.margins: 20
+
+                GridView {
+                    id: cameraGrid
                     anchors.fill: parent
 
-                    // DropArea가 인식하는 drag.source
-                    property int dragIndex: delegateRoot.modelIndex
-                    Drag.active:   dragHandler.active
-                    Drag.keys:     ["cameraCard"]
-                    Drag.hotSpot.x: width  / 2
-                    Drag.hotSpot.y: height / 2
+                    // 오직 가로 길이(cols 개수)에만 맞춰서 크기 계산 (비율 4:3)
+                    property int cols: root.itemsPerRow
+                    
+                    // 여백을 고려하여 한 열에 최대로 들어갈 수 있는 너비 계산
+                    property real maxW_byCol: parent.width / cols
 
-                    DragHandler {
-                        id: dragHandler
-                        onActiveChanged: {
-                            if (active) {
-                                root.dragSourceIndex = delegateRoot.modelIndex
-                                dragSource.Drag.start()
-                            } else {
-                                // 드랍 대상이 없거나 grid 밖에 드랍 → detach 판정
-                                var accepted = dragSource.Drag.drop()
-                                if (accepted !== Qt.MoveAction) {
-                                    // grid 밖 → CameraWindow 생성 시도
-                                    root.tryDetachWindow(
-                                        delegateRoot.modelIndex,
-                                        dragHandler.centroid.scenePosition.x,
-                                        dragHandler.centroid.scenePosition.y
-                                    )
+                    // cellWidth를 가용 가능한 최대 너비로 설정 (단 최소 100)
+                    cellWidth: Math.floor(Math.max(100, maxW_byCol))
+                    
+                    // cellWidth에서 내부 margin 20을 빼고 4:3 비율(0.75 곱하기) 적용 후 다시 margin 20 더하기
+                    cellHeight: Math.floor((cellWidth - 20) * 0.75 + 20)
+
+                    model: cameraModel
+                    interactive: true // 스크롤 허용
+                    clip: true
+                    reuseItems: true
+
+                    onContentYChanged: {
+                        if (root.activeCtrlUrl !== "") {
+                            root.activeCtrlUrl = "";
+                            overlayControlBar.visible = false;
+                        }
+                    }
+
+                    delegate: Item {
+                        id: delegateRoot
+                        width: cameraGrid.cellWidth
+                        height: cameraGrid.cellHeight
+                        readonly property int modelIndex: index
+
+                        CameraCard {
+                            id: card
+                            anchors.centerIn: parent
+                            // 동적 크기 적용 (여백 20, 가로세로 4:3)
+                            width: Math.max(10, parent.width - 20)
+                            height: width * 0.75
+
+                            title: model.title
+                            rtspUrl: model.rtspUrl
+                            isOnline: model.isOnline
+                            ctrlVisible: root.activeCtrlUrl === model.rtspUrl
+                            // 드래그 중이면 원본 카드 반투명
+                            opacity: root.dragSourceIndex === delegateRoot.modelIndex ? 0.3 : 1.0
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: 150
                                 }
-                                root.dragSourceIndex = -1
+                            }
+
+                            onControlRequested: {
+                                if (root.activeCtrlUrl === model.rtspUrl) {
+                                    root.activeCtrlUrl = "";
+                                    overlayControlBar.visible = false;
+                                } else {
+                                    root.activeCtrlUrl = model.rtspUrl;
+                                    const pos = card.mapToItem(root, 0, 0);
+                                    let cx = pos.x + card.width + 8;
+                                    let cy = pos.y;
+
+                                    // 화면 밖으로 넘치면 조정 (GridView 우측/하단 여백 고려)
+                                    if (cx + overlayControlBar.width > root.width) {
+                                        cx = pos.x - overlayControlBar.width - 8;
+                                    }
+                                    if (cy + overlayControlBar.height > root.height) {
+                                        cy = root.height - overlayControlBar.height - 8;
+                                    }
+
+                                    overlayControlBar.x = cx;
+                                    overlayControlBar.y = cy;
+                                    overlayControlBar.visible = true;
+                                }
                             }
                         }
-                    }
-                }
-            } // delegate
-        } // GridView
-    }
 
-    // ── Ghost 이미지 (드래그 중 커서 따라다니는 반투명 카드 preview) ─────────
-    CameraCard {
+                        // ── DropArea: 다른 카드 위에 드롭 → URL 교환 ─────────────────
+                        DropArea {
+                            id: cardDrop
+                            anchors.fill: parent
+                            keys: ["cameraCard"]
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: Theme.hanwhaFirst
+                                radius: 8
+                                opacity: cardDrop.containsDrag && root.dragSourceIndex !== delegateRoot.modelIndex ? 0.25 : 0.0
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: 100
+                                    }
+                                }
+                            }
+
+                            onDropped: drag => {
+                                const src = drag.source.dragIndex;
+                                const dst = delegateRoot.modelIndex;
+                                if (src !== dst && src >= 0)
+                                    cameraModel.swapCameraUrls(src, dst);
+                                drag.accept(Qt.MoveAction);
+                            }
+                        }
+
+                        // ── DragHandler ───────────────────────────────────────────────
+                        DragHandler {
+                            id: dragHandler
+                            target: null
+                            onCentroidChanged: {
+                                if (active) {
+                                    const pos = delegateRoot.mapToItem(root, centroid.position.x, centroid.position.y);
+                                    root.dragGhostX = pos.x;
+                                    root.dragGhostY = pos.y;
+                                }
+                            }
+                            onActiveChanged: {
+                                if (active) {
+                                    root.dragSourceIndex = delegateRoot.modelIndex;
+                                    const pos = delegateRoot.mapToItem(root, centroid.position.x, centroid.position.y);
+                                    root.dragGhostX = pos.x;
+                                    root.dragGhostY = pos.y;
+                                } else {
+                                    const result = ghost.Drag.drop();
+
+                                    // Not a Swap -> Check if coordinate is outside `swapWindowArea` (margin)
+                                    if (result !== Qt.MoveAction) {
+                                        const swPos = root.mapFromItem(swapWindowArea, 0, 0);
+                                        const isOutside = root.dragGhostX < swPos.x || root.dragGhostX > (swPos.x + swapWindowArea.width) || root.dragGhostY < swPos.y || root.dragGhostY > (swPos.y + swapWindowArea.height);
+
+                                        if (isOutside) {
+                                            root.tryDetachWindow(delegateRoot.modelIndex, root.dragGhostX, root.dragGhostY);
+                                        }
+                                    }
+                                    root.dragSourceIndex = -1;
+                                }
+                            }
+                        }
+                    } // delegate
+                } // GridView
+            } // gridContainer
+        } // swapWindowArea
+    } // newWindowArea
+
+    // ── Ghost (드래그 중 커서 추적) ───────────────────────────────────────────
+    Rectangle {
         id: ghost
-        width:  320
+        property int dragIndex: root.dragSourceIndex
+        Drag.active: root.dragSourceIndex >= 0
+        Drag.source: ghost
+        Drag.keys: ["cameraCard"]
+        Drag.hotSpot.x: width / 2
+        Drag.hotSpot.y: height / 2
+
+        width: 320
         height: 240
-        x: dragGhostX - width  / 2
+        x: dragGhostX - width / 2
         y: dragGhostY - height / 2
         z: 999
-        opacity: root.dragSourceIndex >= 0 ? 0.75 : 0.0
+        color: "#1e1e1e"
+        radius: 8
+        border.color: "#888888"
+        border.width: 2
+        opacity: root.dragSourceIndex >= 0 ? 0.7 : 0.0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 120 } }
-
-        // 드래그 중인 카드의 데이터를 표시
-        title:    root.dragSourceIndex >= 0
-                  ? cameraModel.data(cameraModel.index(root.dragSourceIndex, 0), 257)
-                  : ""  // TitleRole = Qt.UserRole+1 = 257 는 QML에서 직접 접근 불가이므로 숨김
-        rtspUrl:  ""
-        isOnline: false
-
-        // 실제로는 title 표시만으로도 충분 — 복잡한 video 렌더링 불필요
-        Component.onCompleted: {
-            // ghost는 video stream 없이 단순 외양만
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 120
+            }
+        }
+        Text {
+            anchors.centerIn: parent
+            text: root.dragSourceIndex >= 0 ? (cameraModel.data(cameraModel.index(root.dragSourceIndex, 0), 257) ?? "") : ""
+            color: "white"
+            font.pixelSize: 15
+            font.bold: true
         }
     }
 
-    // 마우스 이동 시 ghost 위치 업데이트
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.NoButton  // 클릭은 DragHandler에 위임
+        acceptedButtons: Qt.NoButton
         hoverEnabled: true
         propagateComposedEvents: true
-        onPositionChanged: (mouse) => {
-            root.dragGhostX = mouse.x
-            root.dragGhostY = mouse.y
+        onPositionChanged: mouse => {
+            if (root.dragSourceIndex < 0)
+                return;
+            root.dragGhostX = mouse.x;
+            root.dragGhostY = mouse.y;
         }
     }
 
-    // ── CameraWindow 컴포넌트 (동적 생성용) ─────────────────────────────────
+    // ── CameraWindow 동적 생성 ────────────────────────────────────────────────
     Component {
-        id: cameraWindowComponent
+        id: cameraWindowComp
         CameraWindow {}
     }
 
-    // ── Detach 처리 함수 ─────────────────────────────────────────────────────
-    function tryDetachWindow(cardIndex, spawnX, spawnY) {
-        var count = windowCountMap[cardIndex] || 0
-        if (count >= 2) {
-            console.log("CameraWindow limit reached for card", cardIndex)
-            return
-        }
+    function tryDetachWindow(cardIdx, spawnX, spawnY) {
+        const count = windowCountMap[cardIdx] || 0;
+        if (count >= 2)
+            return;
 
-        var title    = cameraModel.data(cameraModel.index(cardIndex, 0), 257) || ("Camera " + cardIndex)
-        var rtspUrl  = cameraModel.data(cameraModel.index(cardIndex, 0), 258) || ""
-        var isOnline = cameraModel.data(cameraModel.index(cardIndex, 0), 259) || false
-
-        var win = cameraWindowComponent.createObject(null, {
-            title:    title,
-            rtspUrl:  rtspUrl,
-            isOnline: isOnline,
-            x: spawnX - 200,
-            y: spawnY - 150,
-            width:  640,
+        const win = cameraWindowComp.createObject(null, {
+            x: Math.max(0, spawnX - 320),
+            y: Math.max(0, spawnY - 240),
+            width: 640,
             height: 480,
-            sourceCardIndex: cardIndex
-        })
+            sourceCardIndex: cardIdx
+        });
+        if (!win)
+            return;
+        const m = Object.assign({}, windowCountMap);
+        m[cardIdx] = count + 1;
+        windowCountMap = m;
 
-        if (win) {
-            var newMap = Object.assign({}, windowCountMap)
-            newMap[cardIndex] = count + 1
-            windowCountMap = newMap
+        win.closing.connect(() => {
+            const n = Object.assign({}, root.windowCountMap);
+            if (n[cardIdx] > 0)
+                n[cardIdx]--;
+            root.windowCountMap = n;
+        });
+    }
 
-            // 창 닫힘 시 카운트 감소
-            win.closing.connect(function() {
-                var m = Object.assign({}, root.windowCountMap)
-                if (m[cardIndex] > 0) m[cardIndex]--
-                root.windowCountMap = m
-            })
+    // ── Floating DeviceControlBar (Root Overlay) ──────────────────────────────
+    DeviceControlBar {
+        id: overlayControlBar
+        visible: false
+        z: 300
+
+        deviceIp: deviceModel.deviceIp(root.activeCtrlUrl)
+        hasMotor: deviceModel.hasMotor(root.activeCtrlUrl)
+        hasIr: deviceModel.hasIr(root.activeCtrlUrl)
+        hasHeater: deviceModel.hasHeater(root.activeCtrlUrl)
+
+        onCloseRequested: {
+            visible = false;
+            root.activeCtrlUrl = "";
         }
     }
 }

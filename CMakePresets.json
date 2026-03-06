@@ -9,43 +9,57 @@
     {
       "name": "base",
       "hidden": true,
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "installDir": "${sourceDir}/install/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       },
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-        "CMAKE_PREFIX_PATH": "$env{Qt6_DIR}",
-        "CMAKE_C_COMPILER": "cl.exe",
-        "CMAKE_CXX_COMPILER": "cl.exe"
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "Qt6_DIR": "$env{Qt6_DIR}",
+        "CMAKE_PREFIX_PATH": "$env{Qt6_ROOT}"
       }
     },
     {
-      "name": "ninja",
+      "name": "ninja-base",
       "hidden": true,
       "inherits": "base",
       "generator": "Ninja",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "toolset": {
-        "value": "host=x64",
-        "strategy": "external"
+      "cacheVariables": {
+        "CMAKE_GENERATOR_INSTANCE": "",
+        "CMAKE_GENERATOR_PLATFORM": "",
+        "CMAKE_GENERATOR_TOOLSET": ""
       }
     },
     {
-      "name": "msvc",
-      "hidden": true,
-      "inherits": "base",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "toolset": "v143,host=x64"
+      "name": "anomap-ninja-debug",
+      "displayName": "AnoMap Ninja (Debug)",
+      "inherits": "ninja-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "anomap-ninja-release",
+      "displayName": "AnoMap Ninja (Release)",
+      "inherits": "ninja-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
-  "buildPresets": []
+  "buildPresets": [
+    {
+      "name": "anomap-ninja-debug",
+      "configurePreset": "anomap-ninja-debug"
+    },
+    {
+      "name": "anomap-ninja-release",
+      "configurePreset": "anomap-ninja-release"
+    }
+  ]
 }

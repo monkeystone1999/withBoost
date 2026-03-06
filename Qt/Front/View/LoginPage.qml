@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import AnoMap.front
-import AnoMap.back
 
 Item {
     id: root
@@ -10,10 +9,14 @@ Item {
     // Navigation signal
     signal requestPage(string pageName)
 
-    Login {
-        id: loginController
-        onLoginSuccess: {
-            root.requestPage("Dashboard");
+    Connections {
+        target: loginController
+        function onLoginSuccess() {
+            if (loginController.state === "admin") {
+                root.requestPage("AdminDashboard");
+            } else {
+                root.requestPage("Home");
+            }
         }
     }
 
@@ -30,7 +33,6 @@ Item {
                 placeholder: "ID"
                 rowLength: 200
                 heightLength: 40
-                onTextChanged: loginController.id = text
             }
 
             InputText {
@@ -39,7 +41,6 @@ Item {
                 rowLength: 200
                 heightLength: 40
                 echoMode: TextInput.Password
-                onTextChanged: loginController.password = text
                 isError: loginController.isError
                 errorText: loginController.errorMessage
             }

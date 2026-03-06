@@ -7,6 +7,16 @@ Item {
     id: root
     signal requestPage(string pageName)
 
+    Connections {
+        target: signupController
+        function onSignupSuccess(message) {
+            console.log("Signup Success:", message);
+            // Replace with requestPage directly to login if "Back" acts like "Login"
+            // Usually "Back" returns to previous Login page
+            root.requestPage("Back");
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.bgPrimary
@@ -52,6 +62,8 @@ Item {
                 rowLength: 400
                 heightLength: 40
                 echoMode: TextInput.Password
+                isError: signupController.isError
+                errorText: signupController.errorMessage
             }
 
             RowLayout {
@@ -68,8 +80,7 @@ Item {
                     text: "Sign Up"
                     onClicked: {
                         console.log("Signup Process Triggered");
-                        // 가입 로직은 나중에 추가. 일단 완료됐다고 가정하고 돌아감.
-                        root.requestPage("Back");
+                        signupController.signup(nameField.text, emailField.text, pwField.text);
                     }
                 }
             }

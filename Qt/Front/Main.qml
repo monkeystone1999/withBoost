@@ -11,9 +11,9 @@ Window {
     color: "transparent"
     // 프레임리스 설정
     flags: Qt.Window | Qt.FramelessWindowHint
-    // QWindowKit 에이전트 - 이게 핵심이에요
-    // 드래그/리사이즈/스냅 등 네이티브 동작을 담당해요
-    Loader {}
+
+    // 앱 종료 시 모든 자식 창(새창)과 함께 완전히 프로세스가 종료되도록 함
+    onClosing: Qt.quit()
 
     WindowAgent {
         id: agent
@@ -45,7 +45,7 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        initialItem: "views/LoginPage.qml"
+        initialItem: "View/LoginPage.qml"
 
         // Push: 새 페이지가 오른쪽에서 슬라이드인
         pushEnter: Transition {
@@ -112,18 +112,35 @@ Window {
         z: 50
         currentPage: "Dashboard"
 
-        onRequestPage: (pageName) => {
+        onRequestPage: pageName => {
             switch (pageName) {
+            case "Home":
             case "Dashboard":
-                // 이미 Dashboard면 스킵
-                stackView.replace(null, "views/DashboardPage.qml")
-                break
+            case "AdminDashboard":
+                if (stackView.depth > 1) {
+                    stackView.pop(null);
+                } else {
+                    stackView.replace(null, "View/DashboardPage.qml");
+                }
+                break;
+            case "AI":
+                stackView.replace(null, "View/AIPage.qml");
+                break;
+            case "Device":
+                stackView.replace(null, "View/DevicePage.qml");
+                break;
+            case "MyPage":
+                stackView.replace(null, "View/MyPage.qml");
+                break;
             case "Settings":
-                stackView.push("views/SettingsPage.qml")
-                break
-            case "Alarms":
-                // 추후 AlarmPage 구현 예정
-                break
+                stackView.replace(null, "View/SettingsPage.qml");
+                break;
+            case "Login":
+                stackView.replace(null, "View/LoginPage.qml");
+                break;
+            case "Signup":
+                stackView.replace(null, "View/SignupPage.qml");
+                break;
             }
         }
     }
@@ -160,30 +177,35 @@ Window {
         Component {
             id: alarmCardComponent
             AlarmCard {
-                onDismissRequested: (id) => alarmLayer.removeAlarm(id)
+                onDismissRequested: id => alarmLayer.removeAlarm(id)
             }
         }
 
         // 알람 추가 함수
         function addAlarm(title, detail, severity) {
-            var id = Date.now()
-            var estimatedHeight = 60 + cardSpacing
+            var id = Date.now();
+            var estimatedHeight = 60 + cardSpacing;
 
             if (totalDisplayedHeight + estimatedHeight > maxDisplayHeight) {
                 // 화면 초과 — 큐에 저장
-                pendingQueue.push({ id: id, title: title, detail: detail, severity: severity })
-                return
+                pendingQueue.push({
+                    id: id,
+                    title: title,
+                    detail: detail,
+                    severity: severity
+                });
+                return;
             }
 
             var card = alarmCardComponent.createObject(alarmColumn, {
-                alarmId:     id,
-                alarmTitle:  title,
+                alarmId: id,
+                alarmTitle: title,
                 alarmDetail: detail,
-                severity:    severity
-            })
+                severity: severity
+            });
 
             if (card) {
-                totalDisplayedHeight += estimatedHeight
+                totalDisplayedHeight += estimatedHeight;
             }
         }
 
@@ -191,19 +213,20 @@ Window {
         function removeAlarm(id) {
             // alarmColumn 자식 탐색 후 제거
             for (var i = 0; i < alarmColumn.children.length; i++) {
-                var child = alarmColumn.children[i]
+                var child = alarmColumn.children[i];
                 if (child.alarmId === id) {
-                    totalDisplayedHeight -= (child.height + cardSpacing)
-                    if (totalDisplayedHeight < 0) totalDisplayedHeight = 0
-                    child.destroy()
-                    break
+                    totalDisplayedHeight -= (child.height + cardSpacing);
+                    if (totalDisplayedHeight < 0)
+                        totalDisplayedHeight = 0;
+                    child.destroy();
+                    break;
                 }
             }
             // 큐에서 다음 알람 꺼내기
             if (pendingQueue.length > 0) {
-                var next = pendingQueue.shift()
-                pendingQueue = pendingQueue  // notify
-                addAlarm(next.title, next.detail, next.severity)
+                var next = pendingQueue.shift();
+                pendingQueue = pendingQueue;  // notify
+                addAlarm(next.title, next.detail, next.severity);
             }
         }
     }
@@ -212,7 +235,7 @@ Window {
     Connections {
         target: typeof alarmManager !== "undefined" ? alarmManager : null
         function onAlarmTriggered(title, detail, severity) {
-            alarmLayer.addAlarm(title, detail, severity)
+            alarmLayer.addAlarm(title, detail, severity);
         }
     }
 
@@ -220,25 +243,42 @@ Window {
     Connections {
         target: stackView.currentItem
         function onRequestPage(pageName) {
-            console.log("Navigation requested:", pageName)
+            console.log("Navigation requested:", pageName);
             switch (pageName) {
             case "Login":
-                stackView.push("views/LoginPage.qml")
-                break
+                // Logout 시나리오나 처음 Session 시작 시나리오 둘 다 커버 가능
+                // Navigation은 LoginPage를 루트 페이지로 교체합니다.
+                stackView.replace(null, "View/LoginPage.qml");
+                break;
             case "Dashboard":
-                stackView.push("views/DashboardPage.qml")
-                break
+            case "Home":
+            case "AdminDashboard":
+                if (stackView.depth > 1) {
+                    stackView.pop(null);
+                } else {
+                    stackView.replace(null, "View/DashboardPage.qml");
+                }
+                break;
+            case "AI":
+                stackView.replace(null, "View/AIPage.qml");
+                break;
+            case "Device":
+                stackView.replace(null, "View/DevicePage.qml");
+                break;
+            case "MyPage":
+                stackView.replace(null, "View/MyPage.qml");
+                break;
             case "Signup":
-                stackView.push("views/SignupPage.qml")
-                break
+                stackView.replace(null, "View/SignupPage.qml");
+                break;
             case "Settings":
-                stackView.push("views/SettingsPage.qml")
-                break
+                stackView.replace(null, "View/SettingsPage.qml");
+                break;
             case "Back":
-                stackView.pop()
-                break
+                stackView.pop();
+                break;
             default:
-                console.log("Unknown page:", pageName)
+                console.log("Unknown page:", pageName);
             }
         }
     }
@@ -246,7 +286,7 @@ Window {
     Connections {
         target: titleBar.menuBtn
         function onClicked() {
-            sideNav.toggle()
+            sideNav.toggle();
         }
     }
 }

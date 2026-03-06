@@ -1,93 +1,105 @@
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
-#include <QQuickWindow>
-#include <QFontDatabase>
-#include <QQmlContext>
-#include <QtQml/qqmlextensionplugin.h>
-#include <QWKQuick/qwkquickglobal.h>
-#include <QQmlAbstractUrlInterceptor>
-#include <QQmlEngine>
+#include "Qt/Back/AlarmManager.hpp"
 #include "Qt/Back/CameraModel.hpp"
+#include "Qt/Back/DeviceModel.hpp"
+#include "Qt/Back/Login.hpp"
+#include "Qt/Back/NetworkBridge.hpp"
+#include "Qt/Back/Signup.hpp"
+#include "Qt/Back/VideoManager.hpp"
+#include "Qt/Back/VideoSurfaceItem.hpp"
 #include "Src/Network/Session.hpp"
+#include <QGuiApplication>
+#include <QQmlAbstractUrlInterceptor>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QQuickWindow>
+#include <QWKQuick/qwkquickglobal.h>
+#include <QtQml/qqmlextensionplugin.h>
 
-// FrontEndplugin_AnoMap_frontPlugin.cpp 에서 생성된 플러그인 클래스 강제 링크
 Q_IMPORT_QML_PLUGIN(AnoMap_frontPlugin)
 
-// ── QML 파일 경로 오타(views/ -> View/) 동적 교정용 인터셉터 ──
 class PathCaseInterceptor : public QQmlAbstractUrlInterceptor {
 public:
-    QUrl intercept(const QUrl &path, DataType type) override {
-        QString urlStr = path.toString();
-        // CMakeLists.txt나 QML 파일을 직접 수정하지 않고 C++에서 경로를 보정합니다.
-        if (urlStr.contains("/views/")) {
-            urlStr.replace("/views/", "/View/");
-        }
-        return QUrl(urlStr);
-    }
+  QUrl intercept(const QUrl &path, DataType) override {
+    QString urlStr = path.toString();
+    if (urlStr.contains("/views/"))
+      urlStr.replace("/views/", "/View/");
+    return QUrl(urlStr);
+  }
 };
 
-void FrontInit(QQmlApplicationEngine& engine);
+int main(int argc, char **argv) {
+  QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
+  QGuiApplication app(argc, argv);
+  QQmlApplicationEngine engine;
 
-int main(int argc, char** argv){
-    QGuiApplication app(argc, argv);
-    QQmlApplicationEngine engine;
+  PathCaseInterceptor interceptor;
+  engine.setUrlInterceptor(&interceptor);
+  QWK::registerTypes(&engine);
 
-    // URL 인터셉터 등록
-    PathCaseInterceptor interceptor;
-    engine.setUrlInterceptor(&interceptor);
+  QObject::connect(
+      &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
+      []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
-    // QWindowKit QML 타입 수동 등록 (필수)
-    QWK::registerTypes(&engine);
+  qmlRegisterType<VideoSurfaceItem>("AnoMap.back", 1, 0, "VideoSurfaceItem");
 
-    // C++ 예외 시그널 연결...
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::objectCreationFailed,
-        &app,
-        []() { QCoreApplication::exit(-1); },
-        Qt::QueuedConnection
-    );
+  // ── Back 객체 생성 ────────────────────────────────────────────────────────
+  NetworkBridge *networkBridge = new NetworkBridge(&engine);
+  engine.rootContext()->setContextProperty("networkBridge", networkBridge);
 
-    // 강제 리소스 초기화: 정적 빌드 시 리소스 로더가 파일들을 못 찾는 현상 방지
-    Q_INIT_RESOURCE(qmake_AnoMap_front);
-    Q_INIT_RESOURCE(FrontEnd_raw_qml_0);
-    Q_INIT_RESOURCE(assets); // Qt/Front/Assets 의 리소스 강제 로드
+  Login *loginController = new Login(networkBridge, &engine);
+  engine.rootContext()->setContextProperty("loginController", loginController);
 
-    // ── Theme 싱글톤 수동 등록 ────────────────────────────────────────────────
-    // CMakeLists.txt의 프로퍼티 대소문자 오타(theme/ vs Theme/)를
-    // CMake 수정 없이 C++에서 수동으로 싱글톤 등록하여 해결합니다.
-    qmlRegisterSingletonType(QUrl("qrc:/qt/qml/AnoMap/front/Theme/Theme.qml"), "AnoMap.front", 1, 0, "Theme");
-    qmlRegisterSingletonType(QUrl("qrc:/qt/qml/AnoMap/front/Theme/Icon.qml"), "AnoMap.front", 1, 0, "Icon");
-    qmlRegisterSingletonType(QUrl("qrc:/qt/qml/AnoMap/front/Theme/Typography.qml"), "AnoMap.front", 1, 0, "Typography");
+  Signup *signupController = new Signup(networkBridge, &engine);
+  engine.rootContext()->setContextProperty("signupController",
+                                           signupController);
 
-    // ── CameraModel 등록 및 컨텍스트 프로퍼티 설정 ─────────────────────────
-    CameraModel* cameraModel = new CameraModel(&engine);
-    cameraModel->addCamera("Camera 01", "rtsp://192.168.1.1/stream1", true);
-    cameraModel->addCamera("Camera 02", "rtsp://192.168.1.2/stream2", true);
-    cameraModel->addCamera("Camera 03", "rtsp://192.168.1.3/stream3", false);
-    cameraModel->addCamera("Camera 04", "rtsp://192.168.1.4/stream4", true);
-    engine.rootContext()->setContextProperty("cameraModel", cameraModel);
+  CameraModel *cameraModel = new CameraModel(&engine);
+  engine.rootContext()->setContextProperty("cameraModel", cameraModel);
+  QObject::connect(networkBridge, &NetworkBridge::cameraListReceived,
+                   cameraModel, &CameraModel::refreshFromJson);
 
-    FrontInit(engine);
-    
-    // static QML 모듈 리소스 경로 매핑
-    engine.addImportPath("qrc:/qt/qml");
-    engine.addImportPath(":/qt/qml");
-    engine.addImportPath("qrc:/");
+  DeviceModel *deviceModel = new DeviceModel(&engine);
+  engine.rootContext()->setContextProperty("deviceModel", deviceModel);
+  QObject::connect(networkBridge, &NetworkBridge::deviceListReceived,
+                   deviceModel, &DeviceModel::refreshFromJson);
 
-    engine.loadFromModule("AnoMap.front", "Main");
+  qDebug() << "[App] DeviceModel registered";
 
-    SessionManager manager;
-    return app.exec();
-}
+  VideoManager *videoManager = new VideoManager(&engine);
+  engine.rootContext()->setContextProperty("videoManager", videoManager);
+  QObject::connect(cameraModel, &CameraModel::urlsUpdated, videoManager,
+                   &VideoManager::registerUrls);
 
-void FrontInit(QQmlApplicationEngine& engine){
-    QFontDatabase::addApplicationFont(":/Core/Fonts/01HanwhaB.ttf");
-    QFontDatabase::addApplicationFont(":/Core/Fonts/02HanwhaR.ttf");
-    QFontDatabase::addApplicationFont(":/Core/Fonts/03HanwhaL.ttf");
-    QFontDatabase::addApplicationFont(":/Core/Fonts/04HanwhaGothicB.ttf");
-    QFontDatabase::addApplicationFont(":/Core/Fonts/05HanwhaGothicR.ttf");
-    QFontDatabase::addApplicationFont(":/Core/Fonts/06HanwhaGothicL.ttf");
-    QFontDatabase::addApplicationFont(":/Core/Fonts/07HanwhaGothicEL.ttf");
-    QFontDatabase::addApplicationFont(":/Core/Fonts/08HanwhaGothicT.ttf");
+  AlarmManager *alarmManager = new AlarmManager(&engine);
+  engine.rootContext()->setContextProperty("alarmManager", alarmManager);
+  QObject::connect(networkBridge, &NetworkBridge::aiResultReceived,
+                   alarmManager, &AlarmManager::parseAiMessage);
+
+  // ── 핵심: 앱 종료 시 Back 을 순서대로 정리 ───────────────────────────────
+  // QGuiApplication::aboutToQuit 은 이벤트 루프가 종료 직전에 발생한다.
+  // 이 시점에 Back 리소스를 먼저 정리해야
+  //   1) FFmpeg 스레드 (Video::m_decodeThread) 가 join 되고
+  //   2) boost::asio io_thread_ 가 join 되어
+  // 프로세스가 깨끗하게 종료된다.
+  QObject::connect(&app, &QGuiApplication::aboutToQuit, [&]() {
+    // 1. 모든 FFmpeg 스트리밍 스레드 종료 (Video::stopStream → join)
+    videoManager->clearAll();
+
+    // 2. 모든 TCP 소켓 닫기 → io_context 에 남은 async 작업 취소
+    //    → work_guard_.reset() 후 io_thread_.join() 이 정상 완료됨
+    networkBridge->disconnectAll();
+  });
+
+  engine.addImportPath("qrc:/qt/qml");
+  engine.addImportPath(":/qt/qml");
+  engine.addImportPath("qrc:/");
+
+  engine.loadFromModule("AnoMap.front", "Main");
+
+  return app.exec();
+  // app.exec() 반환 → aboutToQuit 시그널 발생 → 위 람다 실행
+  // → videoManager, networkBridge 정리 완료
+  // → engine 소멸 → QObject 자식들 소멸
+  // → 프로세스 정상 종료
 }
