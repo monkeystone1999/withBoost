@@ -17,6 +17,7 @@ Rectangle {
     // 컨트롤러 바 표시 상태
     property bool ctrlVisible: false
     signal controlRequested
+    signal rightClicked(real sceneX, real sceneY)
 
     width: 320
     height: 240
@@ -28,6 +29,7 @@ Rectangle {
 
     // 클릭 = 컨트롤러 토글 (드래그와 구분: TapHandler 는 이동 없을 때만 발동)
     TapHandler {
+        acceptedButtons: Qt.LeftButton
         onTapped: {
             console.log("[CameraCard] tapped, hasDevice:", deviceModel.hasDevice(root.rtspUrl), "rtspUrl:", root.rtspUrl);
             if (!deviceModel.hasDevice(root.rtspUrl))
@@ -36,10 +38,16 @@ Rectangle {
         }
     }
 
-    // 카드 내부는 clip true 로 별도 관리
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: eventPoint => {
+            root.rightClicked(eventPoint.position.x, eventPoint.position.y);
+        }
+    }
+
+    // 카드 내부는 clip true 로 별도 관리하지 않음 (루트에서 clip)
     Item {
         anchors.fill: parent
-        clip: true
 
         ColumnLayout {
             anchors.fill: parent
@@ -70,12 +78,17 @@ Rectangle {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
-                    // 디바이스 제어 가능 표시
+                    // 설정(톱니바퀴) 아이콘
                     Text {
-                        visible: deviceModel.hasDevice(root.rtspUrl)
                         text: "⚙"
-                        color: root.ctrlVisible ? "#88aaff" : "#555577"
-                        font.pixelSize: 13
+                        color: root.ctrlVisible ? "#88aaff" : "#bbbbcc"
+                        font.pixelSize: 18
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -5
+                            onClicked: root.rightClicked(width / 2, height / 2)
+                        }
                     }
                     Rectangle {
                         width: 10
@@ -87,13 +100,28 @@ Rectangle {
             }
 
             // 비디오
-            Loader {
+            Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                active: root.isOnline && root.rtspUrl !== ""
-                visible: status === Loader.Ready
-                sourceComponent: VideoSurface {
-                    rtspUrl: root.rtspUrl
+                color: "black"
+
+                Loader {
+                    id: videoLoader
+                    anchors.fill: parent
+                    active: root.isOnline && root.rtspUrl !== ""
+                    visible: status === Loader.Ready
+                    sourceComponent: VideoSurface {
+                        rtspUrl: root.rtspUrl
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: root.isOnline ? "Loading..." : "OFFLINE"
+                    color: root.isOnline ? "#8888aa" : "#ff5555"
+                    font.pixelSize: 14
+                    font.bold: true
+                    visible: !videoLoader.visible
                 }
             }
         }

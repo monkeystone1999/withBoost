@@ -30,16 +30,19 @@ Item {
         SystemButton {
             id: minimizeButton
             iconSource: Icon.minimize
+            bgColor: "transparent"
             onClicked: root.window.showMinimized()
         }
         SystemButton {
             id: maximizeButton
             iconSource: Icon.maximize
+            bgColor: "transparent"
             onClicked: root.window.visibility === Window.Maximized ? root.window.showNormal() : root.window.showMaximized()
         }
         SystemButton {
             id: closeButton
             iconSource: Icon.close
+            bgColor: "transparent"
             isClose: true
             onClicked: root.window.close()
         }
