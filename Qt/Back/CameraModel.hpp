@@ -11,6 +11,7 @@ struct CameraEntry {
   QString description;
   int width;
   int height;
+  QString cameraType;
 };
 
 class CameraModel : public QAbstractListModel {
@@ -22,7 +23,8 @@ public:
     IsOnlineRole,
     DescriptionRole,
     CardWidthRole,
-    CardHeightRole
+    CardHeightRole,
+    CameraTypeRole
   };
 
   explicit CameraModel(QObject *parent = nullptr);

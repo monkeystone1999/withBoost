@@ -18,6 +18,8 @@ qt_add_library(BackEnd STATIC
     VideoManager.cpp
     VideoSurfaceItem.hpp
     VideoSurfaceItem.cpp
+    ServerStatusModel.hpp
+    ServerStatusModel.cpp
 )
 
 target_link_libraries(BackEnd PUBLIC

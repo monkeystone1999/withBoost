@@ -28,6 +28,8 @@ void VideoSurfaceItem::setWorker(QObject *obj) {
   if (m_worker)
     connect(m_worker, &VideoWorker::frameReady, this,
             &VideoSurfaceItem::onFrameReady, Qt::QueuedConnection);
+  else
+    update(); // Force a repaint to clear the node if worker is detached.
 
   emit workerChanged();
 }
@@ -38,7 +40,7 @@ void VideoSurfaceItem::setWorker(QObject *obj) {
 // 스레드에 "다음 프레임에 updatePaintNode 를 실행하라" 고 예약하고 즉시
 // 반환한다 — GUI 이벤트 루프를 점유하지 않음
 void VideoSurfaceItem::onFrameReady() {
-  if (m_worker)
+  if (m_worker && isVisible() && window())
     update();
 }
 
@@ -47,8 +49,11 @@ void VideoSurfaceItem::onFrameReady() {
 // 데이터 없음 VideoWorker::getLatestFrame() 은 atomic load — lock-free
 QSGNode *VideoSurfaceItem::updatePaintNode(QSGNode *oldNode,
                                            UpdatePaintNodeData *) {
-  if (!m_worker)
-    return oldNode;
+  if (!m_worker) {
+    if (oldNode)
+      delete oldNode;
+    return nullptr;
+  }
 
   // atomic load — 뮤텍스 없이 FFmpeg 스레드가 쓴 최신 버퍼를 읽음
   VideoWorker::FrameData frame = m_worker->getLatestFrame();
@@ -74,13 +79,15 @@ QSGNode *VideoSurfaceItem::updatePaintNode(QSGNode *oldNode,
   // createTextureFromImage: 렌더 스레드에서 실행
   // TextureCanUseAtlas를 추가하면 Qt 내부 텍스처 풀을 재사용하여
   // 매 프레임 GPU 메모리를 새로 할당/해제하는 부하를 획기적으로 줄입니다.
+  // 이 외주 텍스처 캐싱을 통해 메인 스레드 렌더링 락이 해소됩니다.
   QSGTexture *tex = window()->createTextureFromImage(
       img,
       QQuickWindow::CreateTextureOptions(QQuickWindow::TextureIsOpaque |
                                          QQuickWindow::TextureCanUseAtlas));
-  if (tex)
+  if (tex) {
     node->setTexture(tex);
+    node->setRect(boundingRect());
+  }
 
-  node->setRect(boundingRect());
   return node;
 }

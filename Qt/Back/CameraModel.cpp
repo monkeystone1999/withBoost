@@ -5,7 +5,6 @@
 #include <QJsonObject>
 #include <utility>
 
-
 CameraModel::CameraModel(QObject *parent) : QAbstractListModel(parent) {}
 
 int CameraModel::rowCount(const QModelIndex &parent) const {
@@ -32,6 +31,8 @@ QVariant CameraModel::data(const QModelIndex &index, int role) const {
     return cam.width;
   case CardHeightRole:
     return cam.height;
+  case CameraTypeRole:
+    return cam.cameraType;
   default:
     return {};
   }
@@ -70,16 +71,17 @@ bool CameraModel::setData(const QModelIndex &index, const QVariant &value,
 }
 
 QHash<int, QByteArray> CameraModel::roleNames() const {
-  return {{TitleRole, "title"},         {RtspUrlRole, "rtspUrl"},
-          {IsOnlineRole, "isOnline"},   {DescriptionRole, "description"},
-          {CardWidthRole, "cardWidth"}, {CardHeightRole, "cardHeight"}};
+  return {{TitleRole, "title"},          {RtspUrlRole, "rtspUrl"},
+          {IsOnlineRole, "isOnline"},    {DescriptionRole, "description"},
+          {CardWidthRole, "cardWidth"},  {CardHeightRole, "cardHeight"},
+          {CameraTypeRole, "cameraType"}};
 }
 
 void CameraModel::addCamera(const QString &title, const QString &rtspUrl,
                             bool isOnline, const QString &description,
                             int width, int height) {
   beginInsertRows(QModelIndex(), m_cameras.size(), m_cameras.size());
-  m_cameras.append({title, rtspUrl, isOnline, description, width, height});
+  m_cameras.append({title, rtspUrl, isOnline, description, width, height, ""});
   endInsertRows();
 }
 
@@ -91,11 +93,14 @@ void CameraModel::swapCameraUrls(int indexA, int indexB) {
   std::swap(m_cameras[indexA].rtspUrl, m_cameras[indexB].rtspUrl);
   std::swap(m_cameras[indexA].isOnline, m_cameras[indexB].isOnline);
   std::swap(m_cameras[indexA].title, m_cameras[indexB].title);
+  std::swap(m_cameras[indexA].cameraType, m_cameras[indexB].cameraType);
 
   const auto idxA = createIndex(indexA, 0);
   const auto idxB = createIndex(indexB, 0);
-  emit dataChanged(idxA, idxA, {RtspUrlRole, IsOnlineRole, TitleRole});
-  emit dataChanged(idxB, idxB, {RtspUrlRole, IsOnlineRole, TitleRole});
+  emit dataChanged(idxA, idxA,
+                   {RtspUrlRole, IsOnlineRole, TitleRole, CameraTypeRole});
+  emit dataChanged(idxB, idxB,
+                   {RtspUrlRole, IsOnlineRole, TitleRole, CameraTypeRole});
 }
 
 void CameraModel::setOnline(int index, bool online) {
@@ -140,7 +145,7 @@ void CameraModel::refreshFromJson(const QString &jsonString) {
       QString title = ip + " (" + type + ")";
       QString rtspUrl = obj["source_url"].toString();
       bool isOnline = obj["is_online"].toBool();
-      m_cameras.append({title, rtspUrl, isOnline, "", 320, 240});
+      m_cameras.append({title, rtspUrl, isOnline, "", 320, 240, type});
     }
     endResetModel();
   } else {

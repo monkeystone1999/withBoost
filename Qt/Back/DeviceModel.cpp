@@ -125,30 +125,27 @@ void DeviceModel::refreshFromJson(const QString &jsonString) {
   m_devices.clear();
   m_byUrl.clear();
 
+  int idx = 0;
   const QJsonArray arr = doc.array();
   for (int i = 0; i < arr.size(); ++i) {
     const QJsonObject obj = arr[i].toObject();
-    const QJsonObject caps = obj["capabilities"].toObject();
+
+    // CAMERA 패킷: SUB_PI 타입만 등록
+    if (obj["type"].toString() != "SUB_PI")
+      continue;
+
     DeviceEntry e;
-    e.rtspUrl = obj["rtsp_url"].toString();
-    if (e.rtspUrl.isEmpty())
-      e.rtspUrl = obj["source_url"].toString();
-
-    e.deviceIp = obj["device_ip"].toString();
-    if (e.deviceIp.isEmpty())
-      e.deviceIp = obj["ip"].toString();
-    if (e.deviceIp.isEmpty())
-      e.deviceIp = hostFromRtsp(e.rtspUrl);
-
-    e.title = obj["title"].toString();
-    if (e.title.isEmpty())
-      e.title = e.deviceIp;
+    e.rtspUrl = obj["source_url"].toString();
+    e.deviceIp = obj["ip"].toString();
+    e.title = obj["ip"].toString() + " (SUB_PI)";
     e.isOnline = obj["is_online"].toBool();
-    e.cap.motor = caps["motor"].toBool(true); // motor 는 기본 true
-    e.cap.ir = caps["ir"].toBool(false);
-    e.cap.heater = caps["heater"].toBool(false);
-    if (!e.rtspUrl.isEmpty())
-      m_byUrl[e.rtspUrl] = i;
+    e.cap.motor = true; // SUB_PI = 모터 기본 제공
+    e.cap.ir = false;
+    e.cap.heater = false;
+
+    if (!e.rtspUrl.isEmpty()) {
+      m_byUrl[e.rtspUrl] = idx++;
+    }
     m_devices.append(e);
   }
 
