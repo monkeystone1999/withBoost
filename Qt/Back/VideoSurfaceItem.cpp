@@ -1,7 +1,10 @@
 #include "VideoSurfaceItem.hpp"
 #include <QQuickWindow>
 #include <QSGImageNode>
+#include <QSGTexture>
 #include <algorithm>
+#include <cmath>
+#include <qrhi.h>
 
 VideoSurfaceItem::VideoSurfaceItem(QQuickItem *parent) : QQuickItem(parent) {
   setFlag(ItemHasContents, true);
@@ -31,38 +34,24 @@ void VideoSurfaceItem::setWorker(QObject *obj) {
   if (m_worker)
     connect(m_worker, &VideoWorker::frameReady, this,
             &VideoSurfaceItem::onFrameReady, Qt::QueuedConnection);
-<<<<<<< Updated upstream
-=======
   else
     update();
->>>>>>> Stashed changes
 
   emit workerChanged();
 }
 
-<<<<<<< Updated upstream
-// ── GUI 스레드 슬롯
-// ─────────────────────────────────────────────────────────── 하는 일: update()
-// 호출 하나뿐 데이터 복사 없음, Mutex 없음, 메모리 할당 없음 update() 는 렌더
-// 스레드에 "다음 프레임에 updatePaintNode 를 실행하라" 고 예약하고 즉시
-// 반환한다 — GUI 이벤트 루프를 점유하지 않음
-void VideoSurfaceItem::onFrameReady() {
-  if (m_worker)
-    update();
-=======
 void VideoSurfaceItem::setCropRect(const QRectF &r) {
   if (m_cropRect == r)
     return;
   m_cropRect = r;
   emit cropRectChanged();
   update(); // schedule repaint so new crop takes effect immediately
->>>>>>> Stashed changes
 }
 
 // ── GUI thread slot — just schedules a repaint
 // ────────────────────────────────
 void VideoSurfaceItem::onFrameReady() {
-  if (!m_worker || !isVisible() || !window())
+  if (!m_worker || !isVisible() || !window() || !window()->isExposed())
     return;
   // Coalesce update requests so GUI thread does not enqueue redundant updates
   // when frameReady arrives faster than render consumption.
@@ -128,10 +117,6 @@ private:
 
 QSGNode *VideoSurfaceItem::updatePaintNode(QSGNode *oldNode,
                                            UpdatePaintNodeData *) {
-<<<<<<< Updated upstream
-  if (!m_worker)
-    return oldNode;
-=======
   m_updatePending.store(false, std::memory_order_release);
 
   if (!m_worker) {
@@ -144,7 +129,6 @@ QSGNode *VideoSurfaceItem::updatePaintNode(QSGNode *oldNode,
     m_renderBufferHold.reset();
     return nullptr;
   }
->>>>>>> Stashed changes
 
   // atomic load — lock-free read from FFmpeg thread
   VideoWorker::FrameData frame = m_worker->getLatestFrame();
@@ -167,25 +151,6 @@ QSGNode *VideoSurfaceItem::updatePaintNode(QSGNode *oldNode,
     m_cachedH = 0;
   }
 
-<<<<<<< Updated upstream
-  // BGRA → Format_ARGB32 (Qt 내부 포맷 일치, 추가 변환 없음)
-  // QImage 는 buffer 를 복사하지 않고 포인터만 참조
-  // shared_ptr 이 살아있는 동안 메모리 안전
-  QImage img(frame.buffer->data(), frame.width, frame.height, frame.width * 4,
-             QImage::Format_ARGB32);
-
-  // createTextureFromImage: 렌더 스레드에서 실행
-  // TextureCanUseAtlas를 추가하면 Qt 내부 텍스처 풀을 재사용하여
-  // 매 프레임 GPU 메모리를 새로 할당/해제하는 부하를 획기적으로 줄입니다.
-  QSGTexture *tex = window()->createTextureFromImage(
-      img,
-      QQuickWindow::CreateTextureOptions(QQuickWindow::TextureIsOpaque |
-                                         QQuickWindow::TextureCanUseAtlas));
-  if (tex)
-    node->setTexture(tex);
-
-  node->setRect(boundingRect());
-=======
   // §2: Persistent Texture Upload via custom VideoTexture
   VideoTexture *vTex = qobject_cast<VideoTexture *>(m_cachedTex);
   if (!vTex || frame.width != m_cachedW || frame.height != m_cachedH) {
@@ -215,7 +180,5 @@ QSGNode *VideoSurfaceItem::updatePaintNode(QSGNode *oldNode,
   }
   node->setSourceRect(QRectF(nx * frame.width, ny * frame.height,
                              nw * frame.width, nh * frame.height));
-
->>>>>>> Stashed changes
   return node;
 }

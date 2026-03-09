@@ -134,6 +134,11 @@ Item {
                         label: "MyPage",
                         icon: "👤",
                         page: "MyPage"
+                    },
+                    {
+                        label: "Admin Panel",
+                        icon: "🛡",
+                        page: "AdminDashboard"
                     }
                 ]
                 delegate: NavItem {
@@ -141,6 +146,7 @@ Item {
                     label: modelData.label
                     iconChar: modelData.icon
                     isActive: root.currentPage === modelData.page
+                    visible: modelData.page !== "AdminDashboard" || (typeof loginController !== "undefined" && loginController.state === "admin")
                     onClicked: {
                         root.currentPage = modelData.page;
                         root.requestPage(modelData.page);
@@ -205,6 +211,9 @@ Item {
                             }
                             if (typeof videoManager !== "undefined" && videoManager !== null) {
                                 videoManager.clearAll();
+                            }
+                            if (typeof cameraModel !== "undefined" && cameraModel !== null) {
+                                cameraModel.clearAll();
                             }
                             root.currentPage = "Login";
                             root.requestPage("Login");

@@ -20,7 +20,7 @@ Window {
     readonly property int roleTitle: 258
     readonly property int roleRtspUrl: 259
     readonly property int roleIsOnline: 260
-    readonly property int roleCropRect: 263
+    readonly property int roleCropRect: 266
 
     function modelRowBySlotId() {
         if (sourceSlotId < 0)

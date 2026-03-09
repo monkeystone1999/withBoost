@@ -19,6 +19,7 @@ Rectangle {
 
     property bool ctrlVisible: false
     signal controlRequested
+    signal rightClicked(real x, real y)
 
     width: 320
     height: 240
@@ -35,18 +36,12 @@ Rectangle {
             root.controlRequested();
         }
     }
-
-<<<<<<< Updated upstream
-    // 카드 내부는 clip true 로 별도 관리
-=======
     TapHandler {
         acceptedButtons: Qt.RightButton
         onTapped: eventPoint => {
             root.rightClicked(eventPoint.position.x, eventPoint.position.y);
         }
     }
-
->>>>>>> Stashed changes
     Item {
         anchors.fill: parent
         clip: true
@@ -79,17 +74,9 @@ Rectangle {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
-<<<<<<< Updated upstream
-                    // 디바이스 제어 가능 표시
-=======
->>>>>>> Stashed changes
                     Text {
                         visible: deviceModel.hasDevice(root.rtspUrl)
                         text: "⚙"
-<<<<<<< Updated upstream
-                        color: root.ctrlVisible ? "#88aaff" : "#555577"
-                        font.pixelSize: 13
-=======
                         color: root.ctrlVisible ? "#88aaff" : "#bbbbcc"
                         font.pixelSize: 18
                         MouseArea {
@@ -97,7 +84,6 @@ Rectangle {
                             anchors.margins: -5
                             onClicked: root.rightClicked(width / 2, height / 2)
                         }
->>>>>>> Stashed changes
                     }
                     Rectangle {
                         width: 10
@@ -108,16 +94,6 @@ Rectangle {
                 }
             }
 
-<<<<<<< Updated upstream
-            // 비디오
-            Loader {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                active: root.isOnline && root.rtspUrl !== ""
-                visible: status === Loader.Ready
-                sourceComponent: VideoSurface {
-                    rtspUrl: root.rtspUrl
-=======
             // Video area
             Rectangle {
                 Layout.fillWidth: true
@@ -143,7 +119,6 @@ Rectangle {
                     font.pixelSize: 14
                     font.bold: true
                     visible: !videoLoader.visible
->>>>>>> Stashed changes
                 }
             }
         }

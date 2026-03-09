@@ -69,16 +69,9 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   m_formatCtx->probesize = 5000000;
   m_formatCtx->max_analyze_duration = 2000000;
 
-<<<<<<< Updated upstream
-  av_dict_set(&options, "rtsp_transport", "tcp", 0);
-  av_dict_set(&options, "rtsp_flags", "prefer_tcp", 0);
-  // 네트워크 포화 상태에서 패킷 지연 및 순서 혼용 방지를 위해 nobuffer 제거
-  // av_dict_set(&options, "fflags", "nobuffer", 0);
-=======
   // 모든 RTSP 연결에 UDP 사용
   av_dict_set(&options, "rtsp_transport", "udp", 0);
   av_dict_set(&options, "flags", "low_delay", 0);
->>>>>>> Stashed changes
 
   // 대신 깨진 프레임(corrupt)을 폐기하여 디코더 크래시 방지 및 0.5초(500000us)
   // 지터 버퍼 허용
@@ -131,12 +124,9 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
     m_codecCtx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
   }
   m_codecCtx->thread_count = 2;
-<<<<<<< Updated upstream
-=======
   m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
   m_codecCtx->skip_loop_filter = AVDISCARD_ALL; // CPU 디코딩 연산 극적 감소
   m_codecCtx->skip_frame = AVDISCARD_DEFAULT;
->>>>>>> Stashed changes
 
   if (avcodec_open2(m_codecCtx, codec, nullptr) < 0) {
     fprintf(stderr, "[Video] 코덱 오픈 실패\n");
@@ -193,8 +183,8 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
                 int numBytes = av_image_get_buffer_size(
                     AV_PIX_FMT_RGBA, targetWidth, targetHeight, 4);
 
-                const int poolSize =
-                    (targetWidth > 1920) ? Config::VIDEO_BUFFER_POOL_SIZE_4K
+                const int poolSize = (targetWidth > 1920)
+                                         ? Config::VIDEO_BUFFER_POOL_SIZE_4K
                                          : Config::VIDEO_BUFFER_POOL_SIZE_HD;
 
                 m_bufferPool.clear();

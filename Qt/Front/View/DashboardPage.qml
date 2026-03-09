@@ -70,6 +70,64 @@ Item {
             border.color: root.dragSourceIndex >= 0 ? "#5588ccff" : "#22ffffff"
             border.width: 1
 
+            // ── Admin-Only Server Status & Pending Assigned List Overlay ──────
+            Rectangle {
+                id: adminPanel
+                z: 200
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: 10
+                width: 280
+                height: 120
+                color: "#aa000000"
+                border.color: "#88ffffff"
+                border.width: 1
+                radius: 6
+                visible: typeof loginController !== "undefined" && loginController.state === "admin"
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 8
+                    Text {
+                        text: qsTr("Admin Dashboard (Server Status)")
+                        color: "white"
+                        font.bold: true
+                    }
+                    Text {
+                        text: typeof serverStatusModel !== "undefined" && serverStatusModel.hasServer ? qsTr("CPU: %1% | Mem: %2% | Temp: %3°C").arg(serverStatusModel.serverCpu.toFixed(1)).arg(serverStatusModel.serverMemory.toFixed(1)).arg(serverStatusModel.serverTemp.toFixed(1)) : qsTr("Server Status: Not Available")
+                        color: "#aaffaa"
+                        font.pixelSize: 12
+                    }
+                    Row {
+                        spacing: 10
+                        BasicButton {
+                            text: "List Pending"
+                            height: 30
+                            onClicked: {
+                                if (typeof loginController !== "undefined" && loginController.state === "admin") {
+                                    if (typeof networkBridge !== "undefined") {
+                                        networkBridge.sendListPending();
+                                    }
+                                }
+                            }
+                        }
+                        BasicButton {
+                            text: "Approve Target"
+                            height: 30
+                            onClicked: {
+                                // For test purposes, this assumes you have a way to pick a target ID.
+                                if (typeof loginController !== "undefined" && loginController.state === "admin") {
+                                    if (typeof networkBridge !== "undefined") {
+                                        // networkBridge.sendApprove("TARGET_ID");
+                                        console.log("Approve requested");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Item {
                 id: gridContainer
                 anchors.fill: parent
@@ -81,13 +139,13 @@ Item {
 
                     // 오직 가로 길이(cols 개수)에만 맞춰서 크기 계산 (비율 4:3)
                     property int cols: root.itemsPerRow
-                    
+
                     // 여백을 고려하여 한 열에 최대로 들어갈 수 있는 너비 계산
                     property real maxW_byCol: parent.width / cols
 
                     // cellWidth를 가용 가능한 최대 너비로 설정 (단 최소 100)
                     cellWidth: Math.floor(Math.max(100, maxW_byCol))
-                    
+
                     // cellWidth에서 내부 margin 20을 빼고 4:3 비율(0.75 곱하기) 적용 후 다시 margin 20 더하기
                     cellHeight: Math.floor((cellWidth - 20) * 0.75 + 20)
 
@@ -152,9 +210,6 @@ Item {
                                     overlayControlBar.visible = true;
                                 }
                             }
-<<<<<<< Updated upstream
-=======
-
                             onRightClicked: (sx, sy) => {
                                 overlayCtxMenu.targetUrl = model.rtspUrl;
                                 overlayCtxMenu.targetSlotId = model.slotId;
@@ -172,7 +227,6 @@ Item {
                                 overlayCtxMenu.y = my;
                                 overlayCtxMenu.visible = true;
                             }
->>>>>>> Stashed changes
                         }
 
                         // ── DropArea: 다른 카드 위에 드롭 → URL 교환 ─────────────────
@@ -228,14 +282,7 @@ Item {
                                         const isOutside = root.dragGhostX < swPos.x || root.dragGhostX > (swPos.x + swapWindowArea.width) || root.dragGhostY < swPos.y || root.dragGhostY > (swPos.y + swapWindowArea.height);
 
                                         if (isOutside) {
-                                            root.tryDetachWindow(delegateRoot.modelIndex,
-                                                                 model.slotId,
-                                                                 model.title,
-                                                                 model.rtspUrl,
-                                                                 model.isOnline,
-                                                                 model.cropRect,
-                                                                 root.dragGhostX,
-                                                                 root.dragGhostY);
+                                            root.tryDetachWindow(delegateRoot.modelIndex, model.slotId, model.title, model.rtspUrl, model.isOnline, model.cropRect, root.dragGhostX, root.dragGhostY);
                                         }
                                     }
                                     root.dragSourceIndex = -1;
@@ -349,9 +396,6 @@ Item {
             root.activeCtrlUrl = "";
         }
     }
-<<<<<<< Updated upstream
-=======
-
     // ── Context Menu (우클릭) ───────────────────────────────────────────────────
 
     // 외부 클릭 캐치를 위한 보이지 않는 전역 오버레이
@@ -479,5 +523,4 @@ Item {
             }
         }
     }
->>>>>>> Stashed changes
 }

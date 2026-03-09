@@ -36,9 +36,12 @@ VideoSurfaceItem {
     }
 
     function _onRegistered(url) {
-        // For slotId-based lookup we re-try on any registration
-        videoManager.workerRegistered.disconnect(_onRegistered);
-        _tryAttach();
+        if (root.slotId >= 0 || root.rtspUrl === url) {
+            try {
+                videoManager.workerRegistered.disconnect(_onRegistered);
+            } catch (e) {}
+            _tryAttach();
+        }
     }
 
     onSlotIdChanged: {

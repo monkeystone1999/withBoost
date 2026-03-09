@@ -45,4 +45,5 @@ private:
 
   // Coalescing 플래그
   std::atomic<bool> m_signalPending{false};
+  std::chrono::steady_clock::time_point m_lastFrameTime;
 };

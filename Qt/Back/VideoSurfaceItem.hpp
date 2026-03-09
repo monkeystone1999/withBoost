@@ -8,8 +8,9 @@
 #include <QSGTexture>
 #include <atomic>
 #include <memory>
-#include <rhi/qrhi.h>
 #include <vector>
+
+class QRhiTexture;
 
 // ── §2 VIDEO_STREAMING_SPEC: QSG Streaming Optimisation ──────────────────────
 // Changes vs previous version:

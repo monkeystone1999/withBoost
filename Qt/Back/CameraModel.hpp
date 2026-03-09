@@ -27,19 +27,15 @@ struct CameraEntry {
   int slotId = -1;
   QString title;
   QString rtspUrl;
-<<<<<<< Updated upstream
-  bool isOnline;
-  QString description;
-  int width;
-  int height;
-=======
   bool isOnline = false;
   QString cameraType;
   int splitCount = 1;             // 1 = no split
   QRectF cropRect = {0, 0, 1, 1}; // default: full frame
   int splitGroupId = -1;          // -1 when not split
   int splitIndex = 0;             // tile index within split group
->>>>>>> Stashed changes
+  QString description;            // Kept for metadata
+  int width = 320;                // Default width
+  int height = 240;               // Default height
 };
 
 class CameraModel : public QAbstractListModel {
@@ -50,15 +46,12 @@ public:
     TitleRole,
     RtspUrlRole,
     IsOnlineRole,
-<<<<<<< Updated upstream
     DescriptionRole,
     CardWidthRole,
-    CardHeightRole
-=======
+    CardHeightRole,
     CameraTypeRole,
     SplitCountRole,
     CropRectRole
->>>>>>> Stashed changes
   };
 
   explicit CameraModel(QObject *parent = nullptr);
@@ -76,6 +69,7 @@ public:
   Q_INVOKABLE void mergeSlots(int anyTileRowIndex, int tileCount);
   Q_INVOKABLE bool isSlotSplit(int slotId) const;
   Q_INVOKABLE bool applyAutoSplitForSlot(int slotId);
+  Q_INVOKABLE void clearAll();
 
   // Legacy alias kept for QML compatibility during transition
   Q_INVOKABLE void swapCameraUrls(int indexA, int indexB) {
