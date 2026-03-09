@@ -1,4 +1,5 @@
 #include "Video.hpp"
+#include "../Config.hpp"
 #include <chrono>
 #include <cstdio>
 
@@ -68,10 +69,16 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   m_formatCtx->probesize = 5000000;
   m_formatCtx->max_analyze_duration = 2000000;
 
+<<<<<<< Updated upstream
   av_dict_set(&options, "rtsp_transport", "tcp", 0);
   av_dict_set(&options, "rtsp_flags", "prefer_tcp", 0);
   // 네트워크 포화 상태에서 패킷 지연 및 순서 혼용 방지를 위해 nobuffer 제거
   // av_dict_set(&options, "fflags", "nobuffer", 0);
+=======
+  // 모든 RTSP 연결에 UDP 사용
+  av_dict_set(&options, "rtsp_transport", "udp", 0);
+  av_dict_set(&options, "flags", "low_delay", 0);
+>>>>>>> Stashed changes
 
   // 대신 깨진 프레임(corrupt)을 폐기하여 디코더 크래시 방지 및 0.5초(500000us)
   // 지터 버퍼 허용
@@ -124,6 +131,12 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
     m_codecCtx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
   }
   m_codecCtx->thread_count = 2;
+<<<<<<< Updated upstream
+=======
+  m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+  m_codecCtx->skip_loop_filter = AVDISCARD_ALL; // CPU 디코딩 연산 극적 감소
+  m_codecCtx->skip_frame = AVDISCARD_DEFAULT;
+>>>>>>> Stashed changes
 
   if (avcodec_open2(m_codecCtx, codec, nullptr) < 0) {
     fprintf(stderr, "[Video] 코덱 오픈 실패\n");
@@ -155,7 +168,7 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
                     .count();
 
             // 33ms (약 30fps) 경과 시에만 변환 진행
-            if (elapsed >= 33) {
+            if (elapsed >= Config::VIDEO_FPS_LIMIT_MS) {
               m_lastUpdateTime = now;
 
               int srcWidth = frame->width;
@@ -163,20 +176,8 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
               if (srcWidth <= 0 || srcHeight <= 0)
                 continue;
 
-              // 화면 렌더링 부하를 줄이기 위해 최대 해상도를 640x360으로 제한
-              // (1080p 해상도로 6개 카메라를 디코딩/업로드하면 UI 스레드가
-              // 마비됨)
               int targetWidth = srcWidth;
               int targetHeight = srcHeight;
-              const int MAX_WIDTH = 640;
-              const int MAX_HEIGHT = 360;
-
-              if (targetWidth > MAX_WIDTH || targetHeight > MAX_HEIGHT) {
-                float ratio = std::min((float)MAX_WIDTH / targetWidth,
-                                       (float)MAX_HEIGHT / targetHeight);
-                targetWidth = static_cast<int>(targetWidth * ratio) & ~1;
-                targetHeight = static_cast<int>(targetHeight * ratio) & ~1;
-              }
 
               if (!m_swsCtx || width != srcWidth || height != srcHeight ||
                   prevTargetWidth != targetWidth ||
@@ -190,10 +191,14 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
                   sws_freeContext(m_swsCtx);
 
                 int numBytes = av_image_get_buffer_size(
-                    AV_PIX_FMT_BGRA, targetWidth, targetHeight, 4);
+                    AV_PIX_FMT_RGBA, targetWidth, targetHeight, 4);
+
+                const int poolSize =
+                    (targetWidth > 1920) ? Config::VIDEO_BUFFER_POOL_SIZE_4K
+                                         : Config::VIDEO_BUFFER_POOL_SIZE_HD;
 
                 m_bufferPool.clear();
-                for (int i = 0; i < 20; ++i) {
+                for (int i = 0; i < poolSize; ++i) {
                   auto buf = std::make_shared<std::vector<uint8_t>>(
                       numBytes + AV_INPUT_BUFFER_PADDING_SIZE);
                   m_bufferPool.push_back(buf);
@@ -202,7 +207,7 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
                 m_swsCtx =
                     sws_getContext(srcWidth, srcHeight,
                                    static_cast<AVPixelFormat>(frame->format),
-                                   targetWidth, targetHeight, AV_PIX_FMT_BGRA,
+                                   targetWidth, targetHeight, AV_PIX_FMT_RGBA,
                                    SWS_BILINEAR, nullptr, nullptr, nullptr);
               }
 
@@ -219,7 +224,7 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
               }
 
               av_image_fill_arrays(frameRGB->data, frameRGB->linesize,
-                                   targetBuffer->data(), AV_PIX_FMT_BGRA,
+                                   targetBuffer->data(), AV_PIX_FMT_RGBA,
                                    targetWidth, targetHeight, 4);
 
               sws_scale(m_swsCtx, (const uint8_t *const *)frame->data,
@@ -227,7 +232,8 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
                         frameRGB->linesize);
 
               if (onFrameReady) {
-                onFrameReady(targetBuffer, targetWidth, targetHeight);
+                onFrameReady(targetBuffer, targetWidth, targetHeight,
+                             frameRGB->linesize[0]);
               }
             }
           }

@@ -4,49 +4,65 @@ import AnoMap.back
 VideoSurfaceItem {
     id: root
 
+    // §3: lookup by slotId so that card reorder (swap) does NOT cause reconnect
+    property int slotId: -1
+    // Legacy fallback — used when slotId is not set
     property string rtspUrl: ""
 
-    // ── worker 연결 시도 ──────────────────────────────────────────────────────
-    function _tryAttach() {
-        if (root.rtspUrl === "") {
-            root.worker = null;
-            return;
-        }
+    // §4: cropRect passed from CameraModel (tile UV coordinates)
+    // Default (0,0,1,1) = full frame; tile entries carry e.g. (0,0,0.5,0.5)
+    // Bound in CameraCard.qml from model.cropRect
 
-        var w = videoManager.getWorker(root.rtspUrl);
+    // ── worker connection ─────────────────────────────────────────────────────
+    function _tryAttach() {
+        var w = null;
+        if (root.slotId >= 0) {
+            w = videoManager.getWorkerBySlot(root.slotId);
+            if (!w && root.rtspUrl !== "") {
+                w = videoManager.getWorker(root.rtspUrl);
+            }
+        } else if (root.rtspUrl !== "") {
+            w = videoManager.getWorker(root.rtspUrl);
+        }
         if (w) {
             root.worker = w;
         } else {
-            // Worker 가 아직 없음 → 등록 완료 시그널 대기
             root.worker = null;
+            try {
+                videoManager.workerRegistered.disconnect(_onRegistered);
+            } catch (e) {}
             videoManager.workerRegistered.connect(_onRegistered);
         }
     }
 
     function _onRegistered(url) {
-        if (url !== root.rtspUrl)
-            return;
-        // 연결 해제 먼저 (중복 연결 방지)
+        // For slotId-based lookup we re-try on any registration
         videoManager.workerRegistered.disconnect(_onRegistered);
-        var w = videoManager.getWorker(url);
-        if (w) {
-            root.worker = w;
-        }
+        _tryAttach();
+    }
+
+    onSlotIdChanged: {
+        try {
+            videoManager.workerRegistered.disconnect(_onRegistered);
+        } catch (e) {}
+        _tryAttach();
     }
 
     onRtspUrlChanged: {
-        // URL 이 바뀌면 기존 대기 연결 해제 후 다시 시도
-        try { videoManager.workerRegistered.disconnect(_onRegistered); } catch(e) {}
-        _tryAttach();
+        if (root.slotId < 0) {
+            try {
+                videoManager.workerRegistered.disconnect(_onRegistered);
+            } catch (e) {}
+            _tryAttach();
+        }
     }
 
-    Component.onCompleted: {
-        _tryAttach();
-    }
+    Component.onCompleted: _tryAttach()
 
     Component.onDestruction: {
-        // 컴포넌트 소멸 시 대기 연결 정리
-        try { videoManager.workerRegistered.disconnect(_onRegistered); } catch(e) {}
+        try {
+            videoManager.workerRegistered.disconnect(_onRegistered);
+        } catch (e) {}
         root.worker = null;
     }
 }

@@ -8,10 +8,26 @@ add_library(AnoMapSTD STATIC
     Thread/ThreadPool.hpp
     Thread/ThreadPool.cpp
     Network/Header.hpp
+    Network/INetworkService.hpp
+    Network/NetworkService.hpp
+    Network/NetworkService.cpp
     Network/Video.hpp
     Network/Video.cpp
     Network/Session.hpp
     Network/Session.cpp
+    Domain/AlarmEvent.hpp
+    Domain/AlarmDispatcher.hpp
+    Domain/AlarmDispatcher.cpp
+    Domain/CameraData.hpp
+    Domain/CameraStore.hpp
+    Domain/CameraStore.cpp
+    Domain/DeviceData.hpp
+    Domain/DeviceStore.hpp
+    Domain/DeviceStore.cpp
+    Domain/ServerStatusData.hpp
+    Domain/ServerStatusStore.hpp
+    Domain/ServerStatusStore.cpp
+    Config.hpp
 )
 
 target_include_directories(AnoMapSTD PRIVATE

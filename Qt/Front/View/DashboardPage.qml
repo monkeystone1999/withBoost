@@ -119,8 +119,9 @@ Item {
                             title: model.title
                             rtspUrl: model.rtspUrl
                             isOnline: model.isOnline
+                            slotId: model.slotId
+                            cropRect: model.cropRect
                             ctrlVisible: root.activeCtrlUrl === model.rtspUrl
-                            // 드래그 중이면 원본 카드 반투명
                             opacity: root.dragSourceIndex === delegateRoot.modelIndex ? 0.3 : 1.0
                             Behavior on opacity {
                                 NumberAnimation {
@@ -151,6 +152,27 @@ Item {
                                     overlayControlBar.visible = true;
                                 }
                             }
+<<<<<<< Updated upstream
+=======
+
+                            onRightClicked: (sx, sy) => {
+                                overlayCtxMenu.targetUrl = model.rtspUrl;
+                                overlayCtxMenu.targetSlotId = model.slotId;
+                                overlayCtxMenu.targetIndex = index;
+                                overlayCtxMenu.targetSplit = model.splitCount;
+                                overlayCtxMenu.targetOnline = model.isOnline;
+                                // sx, sy 는 CameraCard 내부 기준 좌표
+                                const local = root.mapFromItem(card, sx, sy);
+                                let mx = local.x, my = local.y;
+                                if (mx + overlayCtxMenu.width > root.width)
+                                    mx = root.width - overlayCtxMenu.width - 4;
+                                if (my + overlayCtxMenu.height > root.height)
+                                    my = root.height - overlayCtxMenu.height - 4;
+                                overlayCtxMenu.x = mx;
+                                overlayCtxMenu.y = my;
+                                overlayCtxMenu.visible = true;
+                            }
+>>>>>>> Stashed changes
                         }
 
                         // ── DropArea: 다른 카드 위에 드롭 → URL 교환 ─────────────────
@@ -175,7 +197,7 @@ Item {
                                 const src = drag.source.dragIndex;
                                 const dst = delegateRoot.modelIndex;
                                 if (src !== dst && src >= 0)
-                                    cameraModel.swapCameraUrls(src, dst);
+                                    cameraModel.swapSlots(src, dst);   // §3: full entry swap
                                 drag.accept(Qt.MoveAction);
                             }
                         }
@@ -206,7 +228,14 @@ Item {
                                         const isOutside = root.dragGhostX < swPos.x || root.dragGhostX > (swPos.x + swapWindowArea.width) || root.dragGhostY < swPos.y || root.dragGhostY > (swPos.y + swapWindowArea.height);
 
                                         if (isOutside) {
-                                            root.tryDetachWindow(delegateRoot.modelIndex, root.dragGhostX, root.dragGhostY);
+                                            root.tryDetachWindow(delegateRoot.modelIndex,
+                                                                 model.slotId,
+                                                                 model.title,
+                                                                 model.rtspUrl,
+                                                                 model.isOnline,
+                                                                 model.cropRect,
+                                                                 root.dragGhostX,
+                                                                 root.dragGhostY);
                                         }
                                     }
                                     root.dragSourceIndex = -1;
@@ -247,7 +276,7 @@ Item {
         }
         Text {
             anchors.centerIn: parent
-            text: root.dragSourceIndex >= 0 ? (cameraModel.data(cameraModel.index(root.dragSourceIndex, 0), 257) ?? "") : ""
+            text: root.dragSourceIndex >= 0 ? (cameraModel.data(cameraModel.index(root.dragSourceIndex, 0), 258) ?? "") : ""
             color: "white"
             font.pixelSize: 15
             font.bold: true
@@ -273,8 +302,9 @@ Item {
         CameraWindow {}
     }
 
-    function tryDetachWindow(cardIdx, spawnX, spawnY) {
-        const count = windowCountMap[cardIdx] || 0;
+    function tryDetachWindow(cardIdx, slotId, title, rtspUrl, isOnline, cropRect, spawnX, spawnY) {
+        const key = slotId >= 0 ? slotId : cardIdx;
+        const count = windowCountMap[key] || 0;
         if (count >= 2)
             return;
 
@@ -283,18 +313,22 @@ Item {
             y: Math.max(0, spawnY - 240),
             width: 640,
             height: 480,
-            sourceCardIndex: cardIdx
+            sourceSlotId: slotId,
+            sourceTitle: title,
+            sourceRtspUrl: rtspUrl,
+            sourceOnline: isOnline,
+            sourceCropRect: cropRect
         });
         if (!win)
             return;
         const m = Object.assign({}, windowCountMap);
-        m[cardIdx] = count + 1;
+        m[key] = count + 1;
         windowCountMap = m;
 
         win.closing.connect(() => {
             const n = Object.assign({}, root.windowCountMap);
-            if (n[cardIdx] > 0)
-                n[cardIdx]--;
+            if (n[key] > 0)
+                n[key]--;
             root.windowCountMap = n;
         });
     }
@@ -315,4 +349,135 @@ Item {
             root.activeCtrlUrl = "";
         }
     }
+<<<<<<< Updated upstream
+=======
+
+    // ── Context Menu (우클릭) ───────────────────────────────────────────────────
+
+    // 외부 클릭 캐치를 위한 보이지 않는 전역 오버레이
+    MouseArea {
+        anchors.fill: parent
+        z: 399
+        visible: overlayCtxMenu.visible
+        onClicked: overlayCtxMenu.visible = false
+    }
+
+    Rectangle {
+        id: overlayCtxMenu
+        visible: false
+        z: 400
+        width: 190
+        radius: 7
+        color: "#1e1e2e"
+        border.color: "#55aaaaff"
+        border.width: 1
+        height: ctxCol.implicitHeight + 12
+
+        property string targetUrl: ""
+        property int targetSlotId: -1
+        property int targetIndex: -1
+        property int targetSplit: 1    // model.splitCount at right-click time
+        property bool targetOnline: false
+
+        Column {
+            id: ctxCol
+            anchors {
+                left: parent.left
+                right: parent.right
+                top: parent.top
+                margins: 6
+            }
+            spacing: 2
+
+            CtxItem {
+                label: "Device 제어"
+                itemEnabled: deviceModel.hasDevice(overlayCtxMenu.targetUrl)
+                onTriggered: {
+                    root.activeCtrlUrl = overlayCtxMenu.targetUrl;
+                    overlayControlBar.x = Math.min(overlayCtxMenu.x + overlayCtxMenu.width + 8, root.width - overlayControlBar.width - 8);
+                    overlayControlBar.y = overlayCtxMenu.y;
+                    overlayControlBar.visible = true;
+                }
+            }
+            CtxItem {
+                label: "AI 제어"
+                itemEnabled: true
+                onTriggered: { /* AI 제어 추후 연결 */ }
+            }
+            Rectangle {
+                width: parent.width - 12
+                height: 1
+                color: "#33ffffff"
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+            CtxItem {
+                label: "Device 탭에서 보기"
+                itemEnabled: deviceModel.hasDevice(overlayCtxMenu.targetUrl)
+                onTriggered: root.requestPage("Device")
+            }
+            CtxItem {
+                label: "AI 탭에서 보기"
+                itemEnabled: true
+                onTriggered: root.requestPage("AI")
+            }
+            // ── §5: Split/Merge menu items ────────────────────────────────────
+            Rectangle {
+                width: parent.width - 12
+                height: 1
+                color: "#33ffffff"
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+            CtxItem {
+                label: "Split 2"
+                itemEnabled: overlayCtxMenu.targetSplit === 1 && overlayCtxMenu.targetOnline
+                onTriggered: cameraModel.splitSlot(overlayCtxMenu.targetIndex, 2)
+            }
+            CtxItem {
+                label: "Split 3"
+                itemEnabled: overlayCtxMenu.targetSplit === 1 && overlayCtxMenu.targetOnline
+                onTriggered: cameraModel.splitSlot(overlayCtxMenu.targetIndex, 3)
+            }
+            CtxItem {
+                label: "Split 4"
+                itemEnabled: overlayCtxMenu.targetSplit === 1 && overlayCtxMenu.targetOnline
+                onTriggered: cameraModel.splitSlot(overlayCtxMenu.targetIndex, 4)
+            }
+            CtxItem {
+                label: "Merge"
+                itemEnabled: overlayCtxMenu.targetSplit > 1
+                onTriggered: cameraModel.mergeSlots(overlayCtxMenu.targetIndex, overlayCtxMenu.targetSplit)
+            }
+        }
+    }
+
+    component CtxItem: Rectangle {
+        property string label: ""
+        property bool itemEnabled: true
+        signal triggered
+        width: parent.width
+        height: 32
+        radius: 4
+        color: itemEnabled && ma.containsMouse ? "#336688aa" : "transparent"
+        Text {
+            anchors {
+                left: parent.left
+                leftMargin: 12
+                verticalCenter: parent.verticalCenter
+            }
+            text: parent.label
+            color: parent.itemEnabled ? "white" : "#44556688"
+            font.pixelSize: 12
+        }
+        MouseArea {
+            id: ma
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: parent.itemEnabled
+            onClicked: {
+                overlayCtxMenu.visible = false;
+                parent.triggered();
+            }
+        }
+    }
+>>>>>>> Stashed changes
 }

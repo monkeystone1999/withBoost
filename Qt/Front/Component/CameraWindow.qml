@@ -10,25 +10,59 @@ Window {
     color: "transparent"
     visible: true
 
-    // 카드에서 전달받는 인덱스 (모델 바인딩용)
-    property int sourceCardIndex: -1  // 어느 카드에서 분리됐는지
+    property int sourceSlotId: -1
+    property string sourceTitle: ""
+    property string sourceRtspUrl: ""
+    property bool sourceOnline: false
+    property rect sourceCropRect: Qt.rect(0, 0, 1, 1)
 
-    // 동적 갱신 트리거 (model.data() 묶임은 자동 갱신되지 않으므로 수동 연결)
-    property int updateTrigger: 0
+    readonly property int roleSlotId: 257
+    readonly property int roleTitle: 258
+    readonly property int roleRtspUrl: 259
+    readonly property int roleIsOnline: 260
+    readonly property int roleCropRect: 263
 
-    Connections {
-        target: cameraModel
-        function onDataChanged(topLeft, bottomRight, roles) {
-            if (sourceCardIndex >= topLeft.row && sourceCardIndex <= bottomRight.row) {
-                updateTrigger++;
-            }
+    function modelRowBySlotId() {
+        if (sourceSlotId < 0)
+            return -1;
+        const rows = cameraModel.rowCount();
+        for (let i = 0; i < rows; ++i) {
+            const sid = cameraModel.data(cameraModel.index(i, 0), roleSlotId);
+            if (sid === sourceSlotId)
+                return i;
+        }
+        return -1;
+    }
+
+    function refreshModelRow() {
+        const row = modelRowBySlotId();
+        if (root.modelRow !== row) {
+            root.modelRow = row;
         }
     }
 
-    // 동적 바인딩 (updateTrigger가 바뀔 때마다 다시 읽어옴)
-    property string title: (sourceCardIndex >= 0 && updateTrigger >= 0) ? (cameraModel.data(cameraModel.index(sourceCardIndex, 0), 257) || "") : ""
-    property string rtspUrl: (sourceCardIndex >= 0 && updateTrigger >= 0) ? (cameraModel.data(cameraModel.index(sourceCardIndex, 0), 258) || "") : ""
-    property bool isOnline: (sourceCardIndex >= 0 && updateTrigger >= 0) ? (cameraModel.data(cameraModel.index(sourceCardIndex, 0), 259) || false) : false
+    property int modelRow: modelRowBySlotId()
+
+    Connections {
+        target: cameraModel
+        function onRowsMoved() {
+            root.refreshModelRow();
+        }
+        function onModelReset() {
+            root.refreshModelRow();
+        }
+        function onRowsInserted() {
+            root.refreshModelRow();
+        }
+        function onRowsRemoved() {
+            root.refreshModelRow();
+        }
+    }
+
+    property string title: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleTitle) || sourceTitle) : sourceTitle
+    property string rtspUrl: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleRtspUrl) || sourceRtspUrl) : sourceRtspUrl
+    property bool isOnline: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleIsOnline) || false) : sourceOnline
+    property rect cropRect: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleCropRect) || sourceCropRect) : sourceCropRect
 
     width: 640
     height: 480
@@ -37,7 +71,6 @@ Window {
         id: hoverHandler
     }
 
-    // QWindowKit 프레임리스 설정
     WindowAgent {
         id: agent
         Component.onCompleted: {
@@ -49,7 +82,6 @@ Window {
         }
     }
 
-    // ── 타이틀바 (hover 시 나타남) ─────────────────────────────────────────
     CameraWindowTitlebar {
         id: camTitlebar
         z: 100
@@ -67,14 +99,11 @@ Window {
         }
     }
 
-    // ── 배경 + 비디오 ─────────────────────────────────────────────────────
     Rectangle {
         anchors.fill: parent
         color: "#1e1e1e"
         radius: 8
         clip: true
-
-        // 온라인 상태 테두리
         border.color: root.isOnline ? "#4caf50" : "#f44336"
         border.width: 2
 
@@ -82,11 +111,12 @@ Window {
             anchors.fill: parent
             active: root.isOnline && root.rtspUrl !== ""
             sourceComponent: VideoSurface {
+                slotId: root.sourceSlotId
                 rtspUrl: root.rtspUrl
+                cropRect: root.cropRect
             }
         }
 
-        // 오프라인 표시
         Rectangle {
             anchors.fill: parent
             color: "transparent"
@@ -101,7 +131,6 @@ Window {
             }
         }
 
-        // 좌하단 카메라 이름 레이블 (타이틀바 숨겨진 상태에서도 식별 가능)
         Rectangle {
             anchors.left: parent.left
             anchors.bottom: parent.bottom

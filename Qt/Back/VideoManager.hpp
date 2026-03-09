@@ -1,15 +1,19 @@
 #pragma once
 
+#include "CameraModel.hpp" // SlotInfo lives here
+#include "VideoWorker.hpp"
 #include <QMap>
 #include <QObject>
 #include <QStringList>
 
-#include "VideoWorker.hpp"
-
 // VideoWorker 들의 영속 소유자.
 // QML 에서 context property "videoManager" 로 접근한다.
-// URL 기반으로 VideoWorker 를 관리하며 한 번 시작된 스트림은 프로그램 종료까지
-// 유지된다.
+//
+// §8 VIDEO_STREAMING_SPEC changes:
+//   - registerSlots(QList<SlotInfo>) replaces registerUrls()
+//     (workers are keyed by URL internally; slots → worker resolved by slotId)
+//   - getWorkerBySlot(int slotId) for tile-aware QML lookup
+//   - registerUrls() kept for legacy signal path
 class VideoManager : public QObject {
   Q_OBJECT
 
@@ -17,20 +21,28 @@ public:
   explicit VideoManager(QObject *parent = nullptr);
   ~VideoManager() override;
 
-  // QML 에서 URL 로 VideoWorker 조회
+  // QML lookup by URL (legacy / VideoSurface.qml fallback)
   Q_INVOKABLE VideoWorker *getWorker(const QString &rtspUrl);
 
-  // 모든 VideoWorker 종료 및 삭제 (로그아웃 시 호출)
+  // QML lookup by slotId — resolves slotId → rtspUrl → worker
+  Q_INVOKABLE VideoWorker *getWorkerBySlot(int slotId);
+  Q_INVOKABLE bool hasSlot(int slotId) const;
+  Q_INVOKABLE QString slotUrl(int slotId) const;
+
+  // Stop and destroy all workers (called on logout)
   Q_INVOKABLE void clearAll();
 
 signals:
   void workerRegistered(const QString &rtspUrl);
 
 public slots:
-  // CameraModel::urlsUpdated 와 연결한다.
-  // 새로운 URL 에 대해서만 VideoWorker 를 생성하고 startStream() 호출.
+  // New path: receives SlotInfo list from CameraModel::slotsUpdated
+  void registerSlots(const QList<SlotInfo> &slots);
+
+  // Legacy: plain URL list from CameraModel::urlsUpdated
   void registerUrls(const QStringList &urls);
 
 private:
-  QMap<QString, VideoWorker *> m_workers;
+  QMap<QString, VideoWorker *> m_workers; // URL → worker (owns)
+  QMap<int, QString> m_slotToUrl;         // slotId → rtspUrl
 };

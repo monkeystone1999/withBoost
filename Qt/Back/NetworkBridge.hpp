@@ -1,50 +1,60 @@
 #pragma once
-#include "Network/Session.hpp"
+#include "../Src/Network/INetworkService.hpp"
 #include <QObject>
 #include <QString>
-#include <memory>
+
+// ============================================================
+//  NetworkBridge — Qt type bridge over INetworkService
+//
+//  RULE:  This class does ONE thing: convert QString <-> std::string.
+//         It must NOT:
+//           - own SessionManager or any infrastructure
+//           - parse JSON beyond reading 2-3 flat string fields
+//           - decide server address or port (injected via connect())
+//           - create or connect signals of other QObjects
+//
+//  WHY:   Previously NetworkBridge owned SessionManager, hard-coded
+//         session name, and parsed JSON inside lambda callbacks.
+//         After DI refactor it holds only a non-owning pointer to
+//         INetworkService (owned by Core).
+// ============================================================
 
 class NetworkBridge : public QObject {
-    Q_OBJECT
+  Q_OBJECT
 public:
-    explicit NetworkBridge(QObject *parent = nullptr);
-    ~NetworkBridge() override;
+  // Injected — Core owns the service, NetworkBridge only references it
+  explicit NetworkBridge(INetworkService *service, QObject *parent = nullptr);
 
-    Q_INVOKABLE void connectToServer(const QString &name, const QString &ip, const QString &port);
-    Q_INVOKABLE bool hasSession(const QString &name);
-    Q_INVOKABLE void disconnectFromServer(const QString &name);
-    Q_INVOKABLE void disconnectAll();
-    Q_INVOKABLE void sendMessage(const QString &name, const QString &type, const QString &jsonBody);
+  // Called by Core::init() after construction to register callbacks
+  void wireCallbacks();
 
-    Q_INVOKABLE void sendLogin(const QString &id, const QString &password);
-    Q_INVOKABLE void sendSignup(const QString &id, const QString &email, const QString &password);
-    Q_INVOKABLE void sendListPending();
-    Q_INVOKABLE void sendApprove(const QString &targetId);
+  // ── QML-invokable commands ───────────────────────────────
+  // Connect to the server — host and port come from Core (Config)
+  Q_INVOKABLE void connectToServer(const QString &host, const QString &port);
+  Q_INVOKABLE void disconnect();
+  // isConnected: replaces old hasSession() — no session names exposed to Qt
+  // layer
+  Q_INVOKABLE bool isConnected() const;
 
-    // ── Device 제어 ───────────────────────────────────────────────────────────
-    // Header : DEVICE (0x04)
-    // Body   : { "device":"<ip>", "motor":"w"|"a"|"s"|"d"|"auto"|"unauto",
-    //            "ir":"on"|"off"|"auto"|"unauto",
-    //            "heater":"on"|"off"|"auto"|"unauto" }
-    // 사용자가 건드린 항목만 채워서 호출 — 빈 문자열 필드는 JSON 에 포함하지 않음
-    Q_INVOKABLE void sendDevice(const QString &deviceIp,
-                                const QString &motor,
-                                const QString &ir,
-                                const QString &heater);
+  Q_INVOKABLE void sendLogin(const QString &id, const QString &pw);
+  Q_INVOKABLE void sendSignup(const QString &id, const QString &email,
+                              const QString &pw);
+  Q_INVOKABLE void sendListPending();
+  Q_INVOKABLE void sendApprove(const QString &targetId);
+  Q_INVOKABLE void sendDevice(const QString &deviceIp, const QString &motor,
+                              const QString &ir, const QString &heater);
 
 signals:
-    void cameraListReceived(const QString &jsonString);
-    void deviceListReceived(const QString &jsonString); // 서버 → 디바이스 목록 (DEVICE 수신)
-    void aiResultReceived(const QString &jsonString);
-    void loginSuccess(QString state, QString username);
-    void loginFailed(QString errorMessage);
-    void signupSuccess(QString message);
-    void signupFailed(QString errorMessage);
-    void listPendingReceived(const QString &jsonString);
-    void availableReceived(const QString &jsonString);
-    void assignReceived(const QString &jsonString);
-    void connectedToServer();
+  void connectedToServer();
+  void loginSuccess(QString state, QString username);
+  void loginFailed(QString errorMessage);
+  void signupSuccess(QString message);
+  void signupFailed(QString errorMessage);
+  void cameraListReceived(QString json); // raw JSON forwarded to Core
+  void deviceStatusReceived(QString json);
+  void aiResultReceived(QString json);
+  void assignReceived(QString json);
 
 private:
-    std::unique_ptr<SessionManager> m_manager;
+  INetworkService *m_service; // non-owning
 };

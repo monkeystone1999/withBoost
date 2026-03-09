@@ -11,7 +11,11 @@ class Login : public QObject {
   Q_PROPERTY(QString state READ state NOTIFY stateChanged)
   Q_PROPERTY(QString username READ username NOTIFY usernameChanged)
 public:
-  explicit Login(NetworkBridge *bridge, QObject *parent = nullptr);
+  // host and port injected from Config via Core — never hard-coded here
+  explicit Login(NetworkBridge *bridge,
+                 const QString &host,
+                 const QString &port,
+                 QObject *parent = nullptr);
 
   bool isLoading() const;
   bool isError() const;
@@ -37,6 +41,8 @@ signals:
 
 private:
   NetworkBridge *m_bridge;
+  QString m_host;
+  QString m_port;
   bool m_isLoading = false;
   bool m_isError = false;
   QString m_errorMessage;

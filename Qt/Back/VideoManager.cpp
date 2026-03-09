@@ -13,9 +13,22 @@ VideoManager::~VideoManager() {
 
 VideoWorker *VideoManager::getWorker(const QString &rtspUrl) {
   auto it = m_workers.find(rtspUrl);
-  if (it != m_workers.end())
-    return it.value();
-  return nullptr;
+  return it != m_workers.end() ? it.value() : nullptr;
+}
+
+// §3: slot-based lookup — resolves slotId → rtspUrl → worker
+VideoWorker *VideoManager::getWorkerBySlot(int slotId) {
+  auto it = m_slotToUrl.find(slotId);
+  if (it == m_slotToUrl.end())
+    return nullptr;
+  return getWorker(it.value());
+}
+
+bool VideoManager::hasSlot(int slotId) const { return m_slotToUrl.contains(slotId); }
+
+QString VideoManager::slotUrl(int slotId) const {
+  auto it = m_slotToUrl.find(slotId);
+  return it != m_slotToUrl.end() ? it.value() : QString{};
 }
 
 void VideoManager::clearAll() {
@@ -24,15 +37,42 @@ void VideoManager::clearAll() {
     delete worker;
   }
   m_workers.clear();
+  m_slotToUrl.clear();
 }
 
+// §3: new primary registration path — receives SlotInfo list from CameraModel
+void VideoManager::registerSlots(const QList<SlotInfo> &Slots) {
+  // Rebuild slot→URL map
+  m_slotToUrl.clear();
+  for (const SlotInfo &si : Slots)
+    m_slotToUrl.insert(si.slotId, si.rtspUrl);
+
+  // Collect unique URLs and start workers for new ones
+  QStringList uniqueUrls;
+  for (const SlotInfo &si : Slots)
+    if (!uniqueUrls.contains(si.rtspUrl))
+      uniqueUrls << si.rtspUrl;
+
+  // Do not stop/remove existing workers during live slot updates.
+  // CameraModel can reorder/split/merge rapidly; keeping workers alive avoids
+  // transient teardown/restart glitches in streaming surfaces.
+
+  for (const QString &url : uniqueUrls) {
+    if (url.isEmpty() || m_workers.contains(url))
+      continue;
+    qDebug() << "[VideoManager] 신규 스트림 등록 (slot):" << url;
+    auto *worker = new VideoWorker(url, this);
+    m_workers.insert(url, worker);
+    worker->startStream();
+    emit workerRegistered(url);
+  }
+}
+
+// Legacy: plain URL list (still works — connected from urlsUpdated signal)
 void VideoManager::registerUrls(const QStringList &urls) {
   for (const QString &url : urls) {
-    if (url.isEmpty())
+    if (url.isEmpty() || m_workers.contains(url))
       continue;
-    if (m_workers.contains(url))
-      continue; // 이미 존재 → 아무것도 안 함
-
     qDebug() << "[VideoManager] 신규 스트림 등록:" << url;
     auto *worker = new VideoWorker(url, this);
     m_workers.insert(url, worker);

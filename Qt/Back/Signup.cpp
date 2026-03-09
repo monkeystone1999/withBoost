@@ -1,8 +1,11 @@
 #include "Signup.hpp"
 #include <QDebug>
 
-Signup::Signup(NetworkBridge *bridge, QObject *parent)
-    : QObject(parent), m_bridge(bridge) {
+Signup::Signup(NetworkBridge *bridge,
+               const QString &host,
+               const QString &port,
+               QObject *parent)
+    : QObject(parent), m_bridge(bridge), m_host(host), m_port(port) {
   if (m_bridge) {
     connect(m_bridge, &NetworkBridge::signupSuccess, this,
             &Signup::handleSignupSuccess);
@@ -40,12 +43,12 @@ void Signup::signup(const QString &id, const QString &email,
   m_pendingPassword = password;
 
   if (m_bridge) {
-    if (m_bridge->hasSession("Main")) {
-      qDebug() << "[Signup] Session already exists, sending signup directly";
+    if (m_bridge->isConnected()) {
+      qDebug() << "[Signup] Already connected — sending signup directly";
       onConnected();
     } else {
-      qDebug() << "[Signup] No session, connecting to server...";
-      m_bridge->connectToServer("Main", "192.168.0.52", "20000");
+      qDebug() << "[Signup] Connecting to" << m_host << m_port;
+      m_bridge->connectToServer(m_host, m_port);
     }
   }
 }

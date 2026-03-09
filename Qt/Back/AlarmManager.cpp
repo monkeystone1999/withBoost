@@ -1,37 +1,34 @@
 #include "AlarmManager.hpp"
 #include <QDebug>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonValue>
 
-AlarmManager::AlarmManager(QObject *parent) : QObject(parent) {}
+AlarmManager::AlarmManager(AlarmDispatcher *dispatcher, QObject *parent)
+    : QObject(parent), m_dispatcher(dispatcher) {}
 
 AlarmManager::~AlarmManager() {}
 
-void AlarmManager::parseAiMessage(const QString &jsonString) {
-  QJsonParseError error;
-  QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8(), &error);
+// ── New path (§4.10): called by Core on GUI thread after ThreadPool parse
+// ───── The AlarmDispatcher already parsed the JSON on the ThreadPool. This
+// slot just converts std::string → QString and emits the signal.
+void AlarmManager::onAlarm(AlarmEvent ev) {
+  qDebug() << "[AlarmManager] onAlarm: severity=" << ev.severity
+           << "title=" << QString::fromStdString(ev.title);
+  emit alarmTriggered(QString::fromStdString(ev.title),
+                      QString::fromStdString(ev.detail), ev.severity);
+}
 
-  if (error.error != QJsonParseError::NoError) {
-    qWarning() << "Failed to parse AI message JSON:" << error.errorString();
+// ── Legacy path: direct-connect from NetworkBridge::aiResultReceived
+// ────────── Immediately dispatches raw JSON to the ThreadPool via
+// AlarmDispatcher. The ThreadPool callback then calls Core → onAlarm (above)
+// via invokeMethod.
+void AlarmManager::onAiJson(const QString &json) {
+  if (!m_dispatcher)
     return;
-  }
-
-  if (doc.isObject()) {
-    QJsonObject obj = doc.object();
-
-    // Check if the AI payload explicitly requested firing an alarm
-    // The exact JSON structure logic depends on the C++ side protocol
-    // definition, assuming default structure: { "type": "alarm", "title":
-    // "...", "detail": "...", "severity": 2 }
-    if (obj.contains("type") && obj["type"].toString() == "alarm") {
-      QString title =
-          obj.contains("title") ? obj["title"].toString() : "AI Alert";
-      QString detail = obj.contains("detail") ? obj["detail"].toString()
-                                              : "Anomaly detected";
-      int severity = obj.contains("severity") ? obj["severity"].toInt() : 1;
-
-      emit alarmTriggered(title, detail, severity);
-    }
-  }
+  const std::string s = json.toStdString();
+  // AlarmDispatcher internally submits to ThreadPool and invokes callback.
+  // Core wires the callback → QMetaObject::invokeMethod → onAlarm.
+  m_dispatcher->dispatch(s, [this](AlarmEvent ev) {
+    QMetaObject::invokeMethod(
+        this, [this, ev = std::move(ev)]() { onAlarm(std::move(ev)); },
+        Qt::QueuedConnection);
+  });
 }

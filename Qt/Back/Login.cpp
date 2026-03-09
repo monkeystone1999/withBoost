@@ -1,8 +1,11 @@
 #include "Login.hpp"
 #include <QDebug>
 
-Login::Login(NetworkBridge *bridge, QObject *parent)
-    : QObject(parent), m_bridge(bridge) {
+Login::Login(NetworkBridge *bridge,
+             const QString &host,
+             const QString &port,
+             QObject *parent)
+    : QObject(parent), m_bridge(bridge), m_host(host), m_port(port) {
   if (m_bridge) {
     connect(m_bridge, &NetworkBridge::loginSuccess, this,
             &Login::handleLoginSuccess);
@@ -40,19 +43,15 @@ void Login::login(const QString &id, const QString &password) {
   m_pendingPassword = password;
 
   if (m_bridge) {
-    if (m_bridge->hasSession("Main")) {
-      qDebug() << "[Login] [1/1] Session 'Main' already exists — skipping TCP "
-                  "connect";
+    if (m_bridge->isConnected()) {
+      qDebug() << "[Login] Session already connected — sending login directly";
       onConnected();
     } else {
-      qDebug() << "[Login] [1/3] No active session — initiating TCP connect";
-      qDebug() << "[Login] [2/3] Target: 192.168.0.58:20000";
-      m_bridge->connectToServer("Main", "192.168.0.58", "20000");
-      qDebug() << "[Login] [3/3] connectToServer() called — waiting for "
-                  "onConnected signal...";
+      qDebug() << "[Login] Connecting to" << m_host << m_port;
+      m_bridge->connectToServer(m_host, m_port);
     }
   } else {
-    qDebug() << "[Login] ERROR: m_bridge is null — cannot connect";
+    qDebug() << "[Login] ERROR: m_bridge is null";
   }
 }
 
@@ -87,8 +86,8 @@ void Login::handleLoginFailed(QString error) {
 
   // 로그인 실패 시 소켓 연결 즉시 해제 — 다음 시도는 새 연결로
   if (m_bridge) {
-    qDebug() << "[Login] Disconnecting session 'Main' after failure";
-    m_bridge->disconnectFromServer("Main");
+    qDebug() << "[Login] Disconnecting after failure";
+    m_bridge->disconnect();
   }
 
   m_isError = true;
@@ -98,9 +97,9 @@ void Login::handleLoginFailed(QString error) {
 }
 
 void Login::logout() {
-  qDebug() << "[Login] Logging out... disconnecting Main session.";
+  qDebug() << "[Login] Logging out — disconnecting";
   if (m_bridge) {
-    m_bridge->disconnectFromServer("Main");
+    m_bridge->disconnect();
   }
 
   // 로그인 관련 데이터 초기화

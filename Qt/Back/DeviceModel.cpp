@@ -1,4 +1,5 @@
 #include "DeviceModel.hpp"
+#include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -154,4 +155,107 @@ void DeviceModel::refreshFromJson(const QString &jsonString) {
 
   endResetModel();
   qDebug() << "[DeviceModel] refreshed, count:" << m_devices.size();
+}
+
+// ── New path: called by Core via QMetaObject::invokeMethod on GUI thread
+// ────── Receives a pre-parsed vector<DeviceData> from DeviceStore
+// (ThreadPool). NO JSON work here. Just update the Qt model.
+void DeviceModel::onStoreUpdated(std::vector<DeviceData> snapshot) {
+  QSet<QString> representedUrls;
+
+  // 1. Update existing entries
+  for (int i = 0; i < m_devices.size(); ++i) {
+    auto &entry = m_devices[i];
+    auto it = std::find_if(
+        snapshot.begin(), snapshot.end(), [&](const DeviceData &d) {
+          return QString::fromStdString(d.rtspUrl) == entry.rtspUrl;
+        });
+
+    bool changed = false;
+    QList<int> changedRoles;
+
+    if (it == snapshot.end()) {
+      // Mark offline if gone
+      if (entry.isOnline) {
+        entry.isOnline = false;
+        changed = true;
+        changedRoles << IsOnlineRole;
+      }
+    } else {
+      const DeviceData &snap = *it;
+      representedUrls.insert(entry.rtspUrl);
+
+      if (entry.isOnline != snap.isOnline) {
+        entry.isOnline = snap.isOnline;
+        changed = true;
+        changedRoles << IsOnlineRole;
+      }
+
+      QString snapIp = QString::fromStdString(snap.deviceIp);
+      if (entry.deviceIp != snapIp) {
+        entry.deviceIp = snapIp;
+        changed = true;
+        changedRoles << DeviceIpRole;
+      }
+
+      QString snapTitle = QString::fromStdString(snap.title);
+      if (entry.title != snapTitle) {
+        entry.title = snapTitle;
+        changed = true;
+        changedRoles << TitleRole;
+      }
+
+      if (entry.cap.motor != snap.cap.motor) {
+        entry.cap.motor = snap.cap.motor;
+        changed = true;
+        changedRoles << HasMotorRole;
+      }
+      if (entry.cap.ir != snap.cap.ir) {
+        entry.cap.ir = snap.cap.ir;
+        changed = true;
+        changedRoles << HasIrRole;
+      }
+      if (entry.cap.heater != snap.cap.heater) {
+        entry.cap.heater = snap.cap.heater;
+        changed = true;
+        changedRoles << HasHeaterRole;
+      }
+    }
+
+    if (changed) {
+      emit dataChanged(createIndex(i, 0), createIndex(i, 0), changedRoles);
+    }
+  }
+
+  // 2. Insert new entries
+  QList<DeviceEntry> newEntries;
+  int nextIdx = m_devices.size();
+  for (const auto &d : snapshot) {
+    QString url = QString::fromStdString(d.rtspUrl);
+    if (representedUrls.contains(url))
+      continue;
+
+    DeviceEntry e;
+    e.rtspUrl = url;
+    e.deviceIp = QString::fromStdString(d.deviceIp);
+    e.title = QString::fromStdString(d.title);
+    e.isOnline = d.isOnline;
+    e.cap.motor = d.cap.motor;
+    e.cap.ir = d.cap.ir;
+    e.cap.heater = d.cap.heater;
+
+    newEntries.append(e);
+  }
+
+  if (!newEntries.isEmpty()) {
+    beginInsertRows(QModelIndex(), m_devices.size(),
+                    m_devices.size() + newEntries.size() - 1);
+    for (const auto &e : newEntries) {
+      m_byUrl[e.rtspUrl] = nextIdx++;
+      m_devices.append(e);
+    }
+    endInsertRows();
+  }
+
+  qDebug() << "[DeviceModel] onStoreUpdated, count:" << m_devices.size();
 }

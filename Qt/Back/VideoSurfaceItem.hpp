@@ -3,43 +3,60 @@
 #include "VideoWorker.hpp"
 #include <QPointer>
 #include <QQuickItem>
+#include <QRectF>
 #include <QSGImageNode>
 #include <QSGTexture>
+#include <atomic>
+#include <memory>
+#include <rhi/qrhi.h>
+#include <vector>
 
-// ── 설계 원칙 ────────────────────────────────────────────────────────────────
-// GUI 스레드(Main Thread) 가 하는 일:
-//   1. frameReady 시그널 수신
-//   2. update() 호출 (렌더 예약, 즉시 반환)
-//   끝. 데이터 복사/이동 없음. Mutex 없음.
-//
-// 렌더 스레드가 하는 일:
-//   1. updatePaintNode() 에서 worker->getLatestFrame() atomic load
-//   2. createTextureFromImage() → GPU 업로드
-//   GUI 스레드와 데이터 공유 없음 (atomic 으로만 VideoWorker 와 통신)
+// ── §2 VIDEO_STREAMING_SPEC: QSG Streaming Optimisation ──────────────────────
+// Changes vs previous version:
+//   - m_cropRect: normalised UV crop [0..1].  Default = full frame (0,0,1,1).
+//   - m_cachedTex / m_cachedW / m_cachedH: render-thread texture reuse.
+//     A new QSGTexture is only allocated when frame dimensions change (rare).
+//     The same texture object is reused every frame → eliminates 312 GPU
+//     allocations/sec that were caused by createTextureFromImage every frame.
+//   - Q_PROPERTY cropRect: QML can bind tile UV coordinates.
 // ─────────────────────────────────────────────────────────────────────────────
 class VideoSurfaceItem : public QQuickItem {
-    Q_OBJECT
-    Q_PROPERTY(QObject *worker READ worker WRITE setWorker NOTIFY workerChanged)
+  Q_OBJECT
+  Q_PROPERTY(QObject *worker READ worker WRITE setWorker NOTIFY workerChanged)
+  Q_PROPERTY(
+      QRectF cropRect READ cropRect WRITE setCropRect NOTIFY cropRectChanged)
 
 public:
-    explicit VideoSurfaceItem(QQuickItem *parent = nullptr);
-    ~VideoSurfaceItem() override;
+  explicit VideoSurfaceItem(QQuickItem *parent = nullptr);
+  ~VideoSurfaceItem() override;
 
-    QObject *worker() const;
-    void setWorker(QObject *obj);
+  QObject *worker() const;
+  void setWorker(QObject *obj);
+
+  QRectF cropRect() const { return m_cropRect; }
+  void setCropRect(const QRectF &r);
 
 signals:
-    void workerChanged();
+  void workerChanged();
+  void cropRectChanged();
 
 protected:
-    QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *) override;
+  QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *) override;
 
 private slots:
-    // GUI 스레드에서 실행 — update() 만 호출하고 즉시 반환
-    void onFrameReady();
+  void onFrameReady();
 
 private:
-    QPointer<VideoWorker> m_worker;
-    // 렌더 스레드 전용 — GUI 스레드에서 접근 안 함
-    // QMutex, m_pendingFrame, m_frameDirty 모두 제거
+  QPointer<VideoWorker> m_worker;
+
+  // ── GUI-thread state ──────────────────────────────────────────────────────
+  QRectF m_cropRect{0, 0, 1, 1}; // set by QML
+
+  // ── Render-thread private — never touch from GUI thread ───────────────────
+  QSGTexture *m_cachedTex{nullptr};
+  QRhiTexture *m_rhiTex{nullptr};
+  int m_cachedW{0};
+  int m_cachedH{0};
+  std::shared_ptr<std::vector<uint8_t>> m_renderBufferHold;
+  std::atomic<bool> m_updatePending{false};
 };

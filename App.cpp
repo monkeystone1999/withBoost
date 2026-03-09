@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 #include "Qt/Back/AlarmManager.hpp"
 #include "Qt/Back/CameraModel.hpp"
 #include "Qt/Back/DeviceModel.hpp"
@@ -5,60 +6,79 @@
 #include "Qt/Back/NetworkBridge.hpp"
 #include "Qt/Back/Signup.hpp"
 #include "Qt/Back/VideoManager.hpp"
+=======
+// ============================================================
+//  App.cpp — Qt engine configuration only
+//
+//  RULE: This file must not construct any business objects,
+//        parse any data, or wire any signals.
+//        All of that belongs in Core::init().
+//
+//  This file is responsible for:
+//    1. Qt / rendering API selection
+//    2. QQmlApplicationEngine setup (URL interceptor, QWK, import paths)
+//    3. Instantiating Core and delegating init / shutdown
+//    4. Loading the QML root module
+// ============================================================
+
+#include "Core.hpp"
+>>>>>>> Stashed changes
 #include "Qt/Back/VideoSurfaceItem.hpp"
-#include "Src/Network/Session.hpp"
 #include <QGuiApplication>
 #include <QQmlAbstractUrlInterceptor>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QQmlEngine>
 #include <QQuickWindow>
 #include <QWKQuick/qwkquickglobal.h>
 #include <QtQml/qqmlextensionplugin.h>
 
 Q_IMPORT_QML_PLUGIN(AnoMap_frontPlugin)
 
+// Fixes a case-sensitivity issue in QML import paths on case-sensitive
+// file systems that may have been generated with lowercase "views/".
 class PathCaseInterceptor : public QQmlAbstractUrlInterceptor {
 public:
-  QUrl intercept(const QUrl &path, DataType) override {
-    QString urlStr = path.toString();
-    if (urlStr.contains("/views/"))
-      urlStr.replace("/views/", "/View/");
-    return QUrl(urlStr);
-  }
+    QUrl intercept(const QUrl &path, DataType) override {
+        QString s = path.toString();
+        if (s.contains("/views/"))
+            s.replace("/views/", "/View/");
+        return QUrl(s);
+    }
 };
 
 int main(int argc, char **argv) {
-  QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
-  QGuiApplication app(argc, argv);
-  QQmlApplicationEngine engine;
+    // ── 1. Rendering API — must be set before QGuiApplication ────────────
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
 
-  PathCaseInterceptor interceptor;
-  engine.setUrlInterceptor(&interceptor);
-  QWK::registerTypes(&engine);
+    QGuiApplication app(argc, argv);
+    QQmlApplicationEngine engine;
 
-  QObject::connect(
-      &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
-      []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
+    // ── 2. Engine setup ───────────────────────────────────────────────────
+    PathCaseInterceptor interceptor;
+    engine.setUrlInterceptor(&interceptor);
+    QWK::registerTypes(&engine);
 
-  qmlRegisterType<VideoSurfaceItem>("AnoMap.back", 1, 0, "VideoSurfaceItem");
+    QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
+        [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
-  // ── Back 객체 생성 ────────────────────────────────────────────────────────
-  NetworkBridge *networkBridge = new NetworkBridge(&engine);
-  engine.rootContext()->setContextProperty("networkBridge", networkBridge);
+    // VideoSurfaceItem is a QQuickItem — must be registered before QML load
+    qmlRegisterType<VideoSurfaceItem>("AnoMap.back", 1, 0, "VideoSurfaceItem");
 
-  Login *loginController = new Login(networkBridge, &engine);
-  engine.rootContext()->setContextProperty("loginController", loginController);
+    // ── 3. Core: constructs everything, wires signals, registers QML props ─
+    Core core;
+    core.init(engine);
 
-  Signup *signupController = new Signup(networkBridge, &engine);
-  engine.rootContext()->setContextProperty("signupController",
-                                           signupController);
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, [&] {
+        core.shutdown();
+    });
 
-  CameraModel *cameraModel = new CameraModel(&engine);
-  engine.rootContext()->setContextProperty("cameraModel", cameraModel);
-  QObject::connect(networkBridge, &NetworkBridge::cameraListReceived,
-                   cameraModel, &CameraModel::refreshFromJson);
+    // ── 4. QML import paths + load ────────────────────────────────────────
+    engine.addImportPath("qrc:/qt/qml");
+    engine.addImportPath(":/qt/qml");
+    engine.addImportPath("qrc:/");
+    engine.loadFromModule("AnoMap.front", "Main");
 
+<<<<<<< Updated upstream
   DeviceModel *deviceModel = new DeviceModel(&engine);
   engine.rootContext()->setContextProperty("deviceModel", deviceModel);
   QObject::connect(networkBridge, &NetworkBridge::deviceListReceived,
@@ -102,4 +122,7 @@ int main(int argc, char **argv) {
   // → videoManager, networkBridge 정리 완료
   // → engine 소멸 → QObject 자식들 소멸
   // → 프로세스 정상 종료
+=======
+    return app.exec();
+>>>>>>> Stashed changes
 }

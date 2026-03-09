@@ -25,7 +25,7 @@ class Video {
 public:
   // 프레임 콜백: RGB24 데이터 버퍼 (shared_ptr로 소유권 공유), 너비, 높이
   using FrameCallback =
-      std::function<void(std::shared_ptr<std::vector<uint8_t>>, int, int)>;
+      std::function<void(std::shared_ptr<std::vector<uint8_t>>, int, int, int)>;
 
   explicit Video() = default;
   ~Video();

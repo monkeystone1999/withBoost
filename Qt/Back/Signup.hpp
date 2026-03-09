@@ -10,7 +10,10 @@ class Signup : public QObject {
   Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
 
 public:
-  explicit Signup(NetworkBridge *bridge, QObject *parent = nullptr);
+  explicit Signup(NetworkBridge *bridge,
+                  const QString &host,
+                  const QString &port,
+                  QObject *parent = nullptr);
 
   bool isLoading() const;
   bool isError() const;
@@ -32,6 +35,8 @@ signals:
 
 private:
   NetworkBridge *m_bridge;
+  QString m_host;
+  QString m_port;
   bool m_isLoading = false;
   bool m_isError = false;
   QString m_errorMessage;

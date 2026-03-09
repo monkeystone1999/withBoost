@@ -7,7 +7,6 @@
 #include <memory>
 #include <vector>
 
-
 #include "Network/Video.hpp"
 
 class VideoWorker : public QObject {
@@ -23,8 +22,9 @@ public:
 
   struct FrameData {
     std::shared_ptr<std::vector<uint8_t>> buffer;
-    int width  = 0;
+    int width = 0;
     int height = 0;
+    int stride = 0;
   };
 
   // 렌더 스레드에서 호출 — lock 없이 최신 프레임을 가져간다
@@ -34,16 +34,15 @@ signals:
   void frameReady();
 
 private:
-  QString                m_rtspUrl;
+  QString m_rtspUrl;
   std::unique_ptr<Video> m_video;
 
   // FFmpeg 스레드(쓰기) ↔ 렌더 스레드(읽기) — lock-free atomic
   std::atomic<std::shared_ptr<std::vector<uint8_t>>> m_atomicBuffer;
   std::atomic<int> m_atomicWidth{0};
   std::atomic<int> m_atomicHeight{0};
+  std::atomic<int> m_atomicStride{0};
 
   // Coalescing 플래그
   std::atomic<bool> m_signalPending{false};
-
-  std::chrono::steady_clock::time_point m_lastFrameTime;
 };
