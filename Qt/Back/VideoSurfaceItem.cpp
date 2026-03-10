@@ -4,7 +4,6 @@
 #include <QSGTexture>
 #include <algorithm>
 #include <cmath>
-#include <qrhi.h>
 
 VideoSurfaceItem::VideoSurfaceItem(QQuickItem *parent) : QQuickItem(parent) {
   setFlag(ItemHasContents, true);
@@ -60,116 +59,63 @@ void VideoSurfaceItem::onFrameReady() {
   update();
 }
 
-// ── Render thread — updatePaintNode ──────────────────────────────────────────
-// §2 optimisation: allocate a new QSGTexture ONLY when frame dimensions change.
-// For a fixed-resolution RTSP stream, this happens exactly once per session.
-// All subsequent frames reuse the same QSGTexture object → zero GPU alloc/free.
-//
-// §4 tile support: node->setSourceRect(m_cropRect) makes the GPU render only
-// the specified sub-region — zero CPU pixel-copy cost.
-// ── Custom QSGTexture for persistent RHI upload ──────────────────────────────
-class VideoTexture : public QSGTexture {
-public:
-  VideoTexture(QQuickWindow *window) : m_window(window) {}
-  ~VideoTexture() override {
-    if (m_rhiTex)
-      m_rhiTex->deleteLater();
-  }
-
-  void update(const QImage &image) {
-    if (image.size() != m_size) {
-      if (m_rhiTex)
-        m_rhiTex->deleteLater();
-      m_size = image.size();
-      QRhi *rhi = m_window->rhi();
-      if (rhi) {
-        m_rhiTex = rhi->newTexture(QRhiTexture::RGBA8, m_size, 1,
-                                   QRhiTexture::UsedWithSubresourceUpdates);
-        m_rhiTex->create();
-      }
-    }
-    m_pendingImage = image;
-    m_dirty = true;
-  }
-
-  bool updateRhiTexture(QRhi *,
-                        QRhiResourceUpdateBatch *resourceUpdates) override {
-    if (m_dirty && m_rhiTex) {
-      resourceUpdates->uploadTexture(m_rhiTex, m_pendingImage);
-      m_dirty = false;
-      return true;
-    }
-    return false;
-  }
-
-  QRhiTexture *rhiTexture() const override { return m_rhiTex; }
-  QSize textureSize() const override { return m_size; }
-  bool hasAlphaChannel() const override { return false; }
-  bool hasMipmaps() const override { return false; }
-
-private:
-  QQuickWindow *m_window;
-  QRhiTexture *m_rhiTex = nullptr;
-  QSize m_size;
-  QImage m_pendingImage;
-  bool m_dirty = false;
-};
-
+// ── 렌더 스레드: VSync 주기마다 Qt SG sync 단계에서 호출됨 ────────────
+// QRhi 직접 접근 없음. createTextureFromImage → Qt 내부가 GPU 업로드 처리.
+// §4 tile: setSourceRect 으로 GPU 서브리전 렌더링 (CPU 픽셀 복사 비용 없음).
 QSGNode *VideoSurfaceItem::updatePaintNode(QSGNode *oldNode,
                                            UpdatePaintNodeData *) {
   m_updatePending.store(false, std::memory_order_release);
 
+  // worker 없음: 노드 전체 해제, 상태 초기화
   if (!m_worker) {
-    if (oldNode)
-      delete oldNode;
-    // Invalidate cached texture on worker detach
-    m_cachedTex = nullptr;
+    delete oldNode;        // node가 texture 소유 → 함께 해제
+    m_cachedTex = nullptr; // 비소유 추적 포인터만 초기화
     m_cachedW = 0;
     m_cachedH = 0;
     m_renderBufferHold.reset();
     return nullptr;
   }
 
-  // atomic load — lock-free read from FFmpeg thread
+  // FFmpeg 스레드에서 lock-free로 최신 프레임 읽기
   VideoWorker::FrameData frame = m_worker->getLatestFrame();
 
   if (!frame.buffer || frame.width <= 0 || frame.height <= 0) {
     m_renderBufferHold.reset();
     return oldNode;
   }
-  if (frame.stride <= 0) {
+  if (frame.stride <= 0)
     frame.stride = frame.width * 4;
-  }
 
+  // QSGImageNode 재사용 — VSync마다 신규 생성 없음
   QSGImageNode *node = static_cast<QSGImageNode *>(oldNode);
   if (!node) {
     node = window()->createImageNode();
     node->setFiltering(QSGTexture::Linear);
-    node->setOwnsTexture(true); // node deletes m_cachedTex
+    node->setOwnsTexture(true); // node가 texture 수명 관리
     m_cachedTex = nullptr;
     m_cachedW = 0;
     m_cachedH = 0;
   }
 
-  // §2: Persistent Texture Upload via custom VideoTexture
-  VideoTexture *vTex = qobject_cast<VideoTexture *>(m_cachedTex);
-  if (!vTex || frame.width != m_cachedW || frame.height != m_cachedH) {
-    vTex = new VideoTexture(window());
-    m_cachedTex = vTex;
-    node->setTexture(m_cachedTex); // Takes ownership (setOwnsTexture is true)
+  // QImage 래핑 (zero-copy: shared_ptr로 버퍼 수명 연장)
+  m_renderBufferHold = frame.buffer;
+  const QImage img(m_renderBufferHold->data(), frame.width, frame.height,
+                   frame.stride, QImage::Format_RGBA8888);
+
+  // Qt 공식 경로: QRhi 없이 GPU 텍스처 업로드
+  // TextureIsOpaque: FFmpeg RGBA 출력에 알파 없음 → 블렌딩 비용 절감
+  QSGTexture *newTex =
+      window()->createTextureFromImage(img, QQuickWindow::TextureIsOpaque);
+
+  if (newTex) {
+    node->setTexture(newTex); // 이전 texture는 node가 delete
+    m_cachedTex = newTex;     // 비소유 추적 (절대 delete 금지)
     m_cachedW = frame.width;
     m_cachedH = frame.height;
   }
 
-  m_renderBufferHold = frame.buffer;
-  QImage img(m_renderBufferHold->data(), frame.width, frame.height,
-             frame.stride, QImage::Format_RGBA8888);
-  vTex->update(img);
-  // In Qt 6, the renderer will automatically call vTex->updateRhiTexture()
-  // before drawing because the texture is now used by the node's material.
-
   node->setRect(boundingRect());
-  // §4: GPU crop — zero-CPU-cost tile sub-region rendering
+  // §4 tile cropRect: 정규화 좌표 → 픽셀 좌표 변환 후 GPU 서브리전 설정
   const qreal nx = std::clamp(m_cropRect.x(), 0.0, 1.0);
   const qreal ny = std::clamp(m_cropRect.y(), 0.0, 1.0);
   qreal nw = std::clamp(m_cropRect.width(), 0.0, 1.0 - nx);

@@ -24,7 +24,9 @@ VideoWorker *VideoManager::getWorkerBySlot(int slotId) {
   return getWorker(it.value());
 }
 
-bool VideoManager::hasSlot(int slotId) const { return m_slotToUrl.contains(slotId); }
+bool VideoManager::hasSlot(int slotId) const {
+  return m_slotToUrl.contains(slotId);
+}
 
 QString VideoManager::slotUrl(int slotId) const {
   auto it = m_slotToUrl.find(slotId);
@@ -79,4 +81,24 @@ void VideoManager::registerUrls(const QStringList &urls) {
     worker->startStream();
     emit workerRegistered(url);
   }
+}
+
+// F-2: restart an existing worker whose camera came back online
+void VideoManager::restartWorker(const QString &rtspUrl) {
+  auto it = m_workers.find(rtspUrl);
+  if (it == m_workers.end()) {
+    // Worker didn't exist yet — register it fresh
+    if (rtspUrl.isEmpty())
+      return;
+    qDebug() << "[VideoManager] restartWorker: 새 워커 생성" << rtspUrl;
+    auto *worker = new VideoWorker(rtspUrl, this);
+    m_workers.insert(rtspUrl, worker);
+    worker->startStream();
+    emit workerRegistered(rtspUrl);
+    return;
+  }
+  qDebug() << "[VideoManager] restartWorker: 재시작" << rtspUrl;
+  it.value()->stopStream();
+  it.value()->startStream();
+  emit workerRegistered(rtspUrl); // VideoSurface가 재연결 인지
 }

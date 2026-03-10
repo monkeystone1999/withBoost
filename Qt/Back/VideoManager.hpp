@@ -42,6 +42,9 @@ public slots:
   // Legacy: plain URL list from CameraModel::urlsUpdated
   void registerUrls(const QStringList &urls);
 
+  // Restart a specific worker when a camera comes back online
+  void restartWorker(const QString &rtspUrl);
+
 private:
   QMap<QString, VideoWorker *> m_workers; // URL → worker (owns)
   QMap<int, QString> m_slotToUrl;         // slotId → rtspUrl

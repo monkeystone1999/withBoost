@@ -25,12 +25,10 @@ public:
   // Injected — Core owns the service, NetworkBridge only references it
   explicit NetworkBridge(INetworkService *service, QObject *parent = nullptr);
 
-  // Called by Core::init() after construction to register callbacks
-  void wireCallbacks();
-
   // ── QML-invokable commands ───────────────────────────────
   // Connect to the server — host and port come from Core (Config)
-  Q_INVOKABLE void connectToServer(const QString &host, const QString &port);
+  Q_INVOKABLE void connectToServer(const QString &host, const QString &port,
+                                   const QString &purpose);
   Q_INVOKABLE void disconnect();
   // isConnected: replaces old hasSession() — no session names exposed to Qt
   // layer
@@ -45,7 +43,8 @@ public:
                               const QString &ir, const QString &heater);
 
 signals:
-  void connectedToServer();
+  void connectedForLogin();
+  void connectedForSignup();
   void loginSuccess(QString state, QString username);
   void loginFailed(QString errorMessage);
   void signupSuccess(QString message);

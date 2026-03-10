@@ -54,5 +54,6 @@ private:
   std::chrono::steady_clock::time_point m_lastUpdateTime;
 
   void decodeLoopFFmpeg(const std::string &url);
+  bool tryOnceFFmpeg(const std::string &url);
   void cleanupFFmpeg();
 };

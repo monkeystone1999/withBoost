@@ -10,59 +10,71 @@ Window {
     color: "transparent"
     visible: true
 
+    Component.onCompleted: {
+        // Main 윗도우의 openCameraWindows 목록에 등록
+        if (typeof root.Window !== "undefined" && root.transientParent !== null && typeof root.transientParent.registerCameraWindow === "function") {
+            root.transientParent.registerCameraWindow(root);
+        }
+    }
+    Component.onDestruction: {
+        if (typeof root.transientParent !== "undefined" && root.transientParent !== null && typeof root.transientParent.unregisterCameraWindow === "function") {
+            root.transientParent.unregisterCameraWindow(root);
+        }
+    }
+
     property int sourceSlotId: -1
     property string sourceTitle: ""
     property string sourceRtspUrl: ""
     property bool sourceOnline: false
     property rect sourceCropRect: Qt.rect(0, 0, 1, 1)
 
-    readonly property int roleSlotId: 257
-    readonly property int roleTitle: 258
-    readonly property int roleRtspUrl: 259
-    readonly property int roleIsOnline: 260
-    readonly property int roleCropRect: 266
-
-    function modelRowBySlotId() {
-        if (sourceSlotId < 0)
-            return -1;
-        const rows = cameraModel.rowCount();
-        for (let i = 0; i < rows; ++i) {
-            const sid = cameraModel.data(cameraModel.index(i, 0), roleSlotId);
-            if (sid === sourceSlotId)
-                return i;
-        }
-        return -1;
-    }
-
-    function refreshModelRow() {
-        const row = modelRowBySlotId();
-        if (root.modelRow !== row) {
-            root.modelRow = row;
-        }
-    }
-
-    property int modelRow: modelRowBySlotId()
+    property int updateTrigger: 0
 
     Connections {
         target: cameraModel
         function onRowsMoved() {
-            root.refreshModelRow();
+            root.updateTrigger++;
         }
         function onModelReset() {
-            root.refreshModelRow();
+            root.updateTrigger++;
         }
         function onRowsInserted() {
-            root.refreshModelRow();
+            root.updateTrigger++;
         }
         function onRowsRemoved() {
-            root.refreshModelRow();
+            root.updateTrigger++;
+        }
+        function onDataChanged() {
+            root.updateTrigger++;
         }
     }
 
-    property string title: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleTitle) || sourceTitle) : sourceTitle
-    property string rtspUrl: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleRtspUrl) || sourceRtspUrl) : sourceRtspUrl
-    property bool isOnline: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleIsOnline) || false) : sourceOnline
-    property rect cropRect: modelRow >= 0 ? (cameraModel.data(cameraModel.index(modelRow, 0), roleCropRect) || sourceCropRect) : sourceCropRect
+    property string title: {
+        var dummy = updateTrigger;
+        if (root.sourceSlotId < 0 || !cameraModel.hasSlot(root.sourceSlotId))
+            return sourceTitle;
+        var t = cameraModel.titleForSlot(root.sourceSlotId);
+        return t ? t : sourceTitle;
+    }
+    property string rtspUrl: {
+        var dummy = updateTrigger;
+        if (root.sourceSlotId < 0 || !cameraModel.hasSlot(root.sourceSlotId))
+            return sourceRtspUrl;
+        var u = cameraModel.rtspUrlForSlot(root.sourceSlotId);
+        return u ? u : sourceRtspUrl;
+    }
+    property bool isOnline: {
+        var dummy = updateTrigger;
+        if (root.sourceSlotId < 0 || !cameraModel.hasSlot(root.sourceSlotId))
+            return sourceOnline;
+        return cameraModel.isOnlineForSlot(root.sourceSlotId);
+    }
+    property rect cropRect: {
+        var dummy = updateTrigger;
+        if (root.sourceSlotId < 0 || !cameraModel.hasSlot(root.sourceSlotId))
+            return sourceCropRect;
+        return cameraModel.cropRectForSlot(root.sourceSlotId);
+    }
 
     width: 640
     height: 480

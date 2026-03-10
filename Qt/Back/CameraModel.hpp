@@ -71,6 +71,12 @@ public:
   Q_INVOKABLE bool applyAutoSplitForSlot(int slotId);
   Q_INVOKABLE void clearAll();
 
+  Q_INVOKABLE bool hasSlot(int slotId) const;
+  Q_INVOKABLE QString titleForSlot(int slotId) const;
+  Q_INVOKABLE QString rtspUrlForSlot(int slotId) const;
+  Q_INVOKABLE bool isOnlineForSlot(int slotId) const;
+  Q_INVOKABLE QRectF cropRectForSlot(int slotId) const;
+
   // Legacy alias kept for QML compatibility during transition
   Q_INVOKABLE void swapCameraUrls(int indexA, int indexB) {
     swapSlots(indexA, indexB);
@@ -79,14 +85,14 @@ public:
 public slots:
   // New path: called by Core on GUI thread with pre-parsed snapshot
   void onStoreUpdated(std::vector<CameraData> snapshot);
-  // Legacy fallback
-  void refreshFromJson(const QString &jsonString);
 
 signals:
   // Emits the new SlotInfo list for VideoManager::registerSlots
   void slotsUpdated(QList<SlotInfo> slots);
   // Legacy URL-only signal (VideoManager::registerUrls)
   void urlsUpdated(QStringList urls);
+  // Fired when an existing camera comes back online (offline → online transition)
+  void cameraOnline(const QString &rtspUrl);
 
 private:
   static QRectF computeCropRect(int tileIndex, int tileCount);

@@ -46,8 +46,6 @@ public:
 public slots:
   // Called by Core (GUI thread) with pre-parsed snapshot — no JSON
   void onStoreUpdated(ServerStatusData data);
-  // Legacy: kept as fallback during transition
-  void refreshFromJson(const QString &jsonString);
 
 signals:
   void statusUpdated();

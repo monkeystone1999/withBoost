@@ -1,8 +1,5 @@
 #include "DeviceModel.hpp"
 #include <QDebug>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QUrl>
 
 namespace {
@@ -107,56 +104,6 @@ int DeviceModel::findIndexByRtspUrl(const QString &rtspUrl) const {
   return -1;
 }
 
-// 서버 DEVICE 패킷 body JSON 포맷 (배열):
-// [
-//   {
-//     "rtsp_url":   "rtsp://...",
-//     "device_ip":  "192.168.0.23",
-//     "title":      "PTZ-1",
-//     "is_online":  true,
-//     "capabilities": { "motor": true, "ir": false, "heater": false }
-//   }, ...
-// ]
-void DeviceModel::refreshFromJson(const QString &jsonString) {
-  QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8());
-  if (!doc.isArray())
-    return;
-
-  beginResetModel();
-  m_devices.clear();
-  m_byUrl.clear();
-
-  const QJsonArray arr = doc.array();
-  for (int i = 0; i < arr.size(); ++i) {
-    const QJsonObject obj = arr[i].toObject();
-    const QJsonObject caps = obj["capabilities"].toObject();
-    DeviceEntry e;
-    e.rtspUrl = obj["rtsp_url"].toString();
-    if (e.rtspUrl.isEmpty())
-      e.rtspUrl = obj["source_url"].toString();
-
-    e.deviceIp = obj["device_ip"].toString();
-    if (e.deviceIp.isEmpty())
-      e.deviceIp = obj["ip"].toString();
-    if (e.deviceIp.isEmpty())
-      e.deviceIp = hostFromRtsp(e.rtspUrl);
-
-    e.title = obj["title"].toString();
-    if (e.title.isEmpty())
-      e.title = e.deviceIp;
-    e.isOnline = obj["is_online"].toBool();
-    e.cap.motor = caps["motor"].toBool(true); // motor 는 기본 true
-    e.cap.ir = caps["ir"].toBool(false);
-    e.cap.heater = caps["heater"].toBool(false);
-    if (!e.rtspUrl.isEmpty())
-      m_byUrl[e.rtspUrl] = i;
-    m_devices.append(e);
-  }
-
-  endResetModel();
-  qDebug() << "[DeviceModel] refreshed, count:" << m_devices.size();
-}
-
 // ── New path: called by Core via QMetaObject::invokeMethod on GUI thread
 // ────── Receives a pre-parsed vector<DeviceData> from DeviceStore
 // (ThreadPool). NO JSON work here. Just update the Qt model.
@@ -251,10 +198,17 @@ void DeviceModel::onStoreUpdated(std::vector<DeviceData> snapshot) {
     beginInsertRows(QModelIndex(), m_devices.size(),
                     m_devices.size() + newEntries.size() - 1);
     for (const auto &e : newEntries) {
-      m_byUrl[e.rtspUrl] = nextIdx++;
       m_devices.append(e);
     }
     endInsertRows();
+  }
+
+  // Rebuild m_byUrl fully here to prevent stale indices
+  m_byUrl.clear();
+  for (int i = 0; i < m_devices.size(); ++i) {
+    if (!m_devices[i].rtspUrl.isEmpty()) {
+      m_byUrl[m_devices[i].rtspUrl] = i;
+    }
   }
 
   qDebug() << "[DeviceModel] onStoreUpdated, count:" << m_devices.size();

@@ -10,8 +10,6 @@
 #include <memory>
 #include <vector>
 
-class QRhiTexture;
-
 // ── §2 VIDEO_STREAMING_SPEC: QSG Streaming Optimisation ──────────────────────
 // Changes vs previous version:
 //   - m_cropRect: normalised UV crop [0..1].  Default = full frame (0,0,1,1).
@@ -55,7 +53,7 @@ private:
 
   // ── Render-thread private — never touch from GUI thread ───────────────────
   QSGTexture *m_cachedTex{nullptr};
-  QRhiTexture *m_rhiTex{nullptr};
+
   int m_cachedW{0};
   int m_cachedH{0};
   std::shared_ptr<std::vector<uint8_t>> m_renderBufferHold;

@@ -17,9 +17,14 @@ Rectangle {
     property bool isOnline: false
     property rect cropRect: Qt.rect(0, 0, 1, 1)   // §4: UV crop (full frame default)
 
-    property bool ctrlVisible: false
-    signal controlRequested
-    signal rightClicked(real x, real y)
+    property bool showActionIcon: false
+    property string actionIconText: ""
+    property bool draggable: false
+    property bool highlightOnHover: false
+
+    signal tapped
+    signal actionIconTapped
+    signal rightTapped(real x, real y)
 
     width: 320
     height: 240
@@ -31,15 +36,13 @@ Rectangle {
 
     TapHandler {
         onTapped: {
-            if (!deviceModel.hasDevice(root.rtspUrl))
-                return;
-            root.controlRequested();
+            root.tapped();
         }
     }
     TapHandler {
         acceptedButtons: Qt.RightButton
         onTapped: eventPoint => {
-            root.rightClicked(eventPoint.position.x, eventPoint.position.y);
+            root.rightTapped(eventPoint.position.x, eventPoint.position.y);
         }
     }
     Item {
@@ -75,14 +78,14 @@ Rectangle {
                         elide: Text.ElideRight
                     }
                     Text {
-                        visible: deviceModel.hasDevice(root.rtspUrl)
-                        text: "⚙"
-                        color: root.ctrlVisible ? "#88aaff" : "#bbbbcc"
+                        visible: root.showActionIcon
+                        text: root.actionIconText !== "" ? root.actionIconText : "⚙"
+                        color: root.highlightOnHover ? "#88aaff" : "#bbbbcc"
                         font.pixelSize: 18
                         MouseArea {
                             anchors.fill: parent
                             anchors.margins: -5
-                            onClicked: root.rightClicked(width / 2, height / 2)
+                            onClicked: root.actionIconTapped()
                         }
                     }
                     Rectangle {

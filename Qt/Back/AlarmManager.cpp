@@ -15,20 +15,3 @@ void AlarmManager::onAlarm(AlarmEvent ev) {
   emit alarmTriggered(QString::fromStdString(ev.title),
                       QString::fromStdString(ev.detail), ev.severity);
 }
-
-// ── Legacy path: direct-connect from NetworkBridge::aiResultReceived
-// ────────── Immediately dispatches raw JSON to the ThreadPool via
-// AlarmDispatcher. The ThreadPool callback then calls Core → onAlarm (above)
-// via invokeMethod.
-void AlarmManager::onAiJson(const QString &json) {
-  if (!m_dispatcher)
-    return;
-  const std::string s = json.toStdString();
-  // AlarmDispatcher internally submits to ThreadPool and invokes callback.
-  // Core wires the callback → QMetaObject::invokeMethod → onAlarm.
-  m_dispatcher->dispatch(s, [this](AlarmEvent ev) {
-    QMetaObject::invokeMethod(
-        this, [this, ev = std::move(ev)]() { onAlarm(std::move(ev)); },
-        Qt::QueuedConnection);
-  });
-}

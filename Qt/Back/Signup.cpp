@@ -1,9 +1,7 @@
 #include "Signup.hpp"
 #include <QDebug>
 
-Signup::Signup(NetworkBridge *bridge,
-               const QString &host,
-               const QString &port,
+Signup::Signup(NetworkBridge *bridge, const QString &host, const QString &port,
                QObject *parent)
     : QObject(parent), m_bridge(bridge), m_host(host), m_port(port) {
   if (m_bridge) {
@@ -11,7 +9,7 @@ Signup::Signup(NetworkBridge *bridge,
             &Signup::handleSignupSuccess);
     connect(m_bridge, &NetworkBridge::signupFailed, this,
             &Signup::handleSignupFailed);
-    connect(m_bridge, &NetworkBridge::connectedToServer, this,
+    connect(m_bridge, &NetworkBridge::connectedForSignup, this,
             &Signup::onConnected);
   }
 }
@@ -48,7 +46,7 @@ void Signup::signup(const QString &id, const QString &email,
       onConnected();
     } else {
       qDebug() << "[Signup] Connecting to" << m_host << m_port;
-      m_bridge->connectToServer(m_host, m_port);
+      m_bridge->connectToServer(m_host, m_port, "signup");
     }
   }
 }

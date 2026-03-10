@@ -6,6 +6,7 @@ import AnoMap.front
 Item {
     id: root
     signal requestPage(string pageName)
+    signal requestClose
 
     Connections {
         target: signupController

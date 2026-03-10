@@ -206,14 +206,14 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
+                            // 콴 노 열려있는 모든 CameraWindow 닫기
+                            if (typeof root.Window !== "undefined") {
+                                var mainWin = root.Window.window;
+                                if (mainWin && typeof mainWin.closeAllCameraWindows === "function")
+                                    mainWin.closeAllCameraWindows();
+                            }
                             if (typeof loginController !== "undefined" && loginController !== null) {
                                 loginController.logout();
-                            }
-                            if (typeof videoManager !== "undefined" && videoManager !== null) {
-                                videoManager.clearAll();
-                            }
-                            if (typeof cameraModel !== "undefined" && cameraModel !== null) {
-                                cameraModel.clearAll();
                             }
                             root.currentPage = "Login";
                             root.requestPage("Login");
@@ -276,8 +276,12 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            root.currentPage = "Settings";
-                            root.requestPage("Settings");
+                            // Option은 별도 Page가 아닌 Floating Dialog
+                            if (typeof root.Window !== "undefined") {
+                                var mainWin = root.Window.window;
+                                if (mainWin && typeof mainWin.openOptionDialog === "function")
+                                    mainWin.openOptionDialog();
+                            }
                             root.close();
                         }
                     }

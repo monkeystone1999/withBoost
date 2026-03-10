@@ -12,10 +12,8 @@ class Login : public QObject {
   Q_PROPERTY(QString username READ username NOTIFY usernameChanged)
 public:
   // host and port injected from Config via Core — never hard-coded here
-  explicit Login(NetworkBridge *bridge,
-                 const QString &host,
-                 const QString &port,
-                 QObject *parent = nullptr);
+  explicit Login(NetworkBridge *bridge, const QString &host,
+                 const QString &port, QObject *parent = nullptr);
 
   bool isLoading() const;
   bool isError() const;
@@ -33,6 +31,7 @@ public slots:
 
 signals:
   void loginSuccess();
+  void logoutRequested();
   void isLoadingChanged();
   void isErrorChanged();
   void errorMessageChanged();

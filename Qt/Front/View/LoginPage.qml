@@ -8,6 +8,7 @@ Item {
 
     // Navigation signal
     signal requestPage(string pageName)
+    signal requestClose
 
     Connections {
         target: loginController
@@ -15,7 +16,7 @@ Item {
             if (loginController.state === "admin") {
                 root.requestPage("AdminDashboard");
             } else {
-                root.requestPage("Home");
+                root.requestPage("Dashboard");
             }
         }
     }

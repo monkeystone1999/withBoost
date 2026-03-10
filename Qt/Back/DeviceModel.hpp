@@ -52,8 +52,6 @@ public:
 public slots:
   // Called by Core (GUI thread) with pre-parsed snapshot — no JSON
   void onStoreUpdated(std::vector<DeviceData> snapshot);
-  // Legacy: kept as fallback during transition
-  void refreshFromJson(const QString &jsonString);
 
 private:
   int findIndexByRtspUrl(const QString &rtspUrl) const;

@@ -5,8 +5,7 @@
 
 static void ffmpeg_log_callback(void *, int level, const char *fmt,
                                 va_list vl) {
-  // 디버그 레벨까지 모두 출력하도록 상향
-  if (level > AV_LOG_DEBUG)
+  if (level > AV_LOG_WARNING)
     return;
   char buf[1024];
   vsnprintf(buf, sizeof(buf), fmt, vl);
@@ -40,6 +39,22 @@ void Video::stopStream() {
 }
 
 void Video::decodeLoopFFmpeg(const std::string &url) {
+  // 외부 재시도 루프: tryOnceFFmpeg() 가 false 를 반환하면 3초 대기 후 재시도
+  while (!m_stopThread) {
+    bool ok = tryOnceFFmpeg(url);
+    if (m_stopThread)
+      break;
+    if (!ok) {
+      fprintf(stderr, "[Video] 연결 실패/끊김 — 3초 후 재시도: %s\n",
+              url.c_str());
+      for (int i = 0; i < 30 && !m_stopThread; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+  }
+  fprintf(stderr, "[Video] 디코딩 루프 종료\n");
+}
+
+bool Video::tryOnceFFmpeg(const std::string &url) {
   AVFrame *frame = nullptr;
   AVFrame *frameRGB = nullptr;
   AVPacket *packet = nullptr;
@@ -47,19 +62,18 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   const AVCodec *codec = nullptr;
   int width = 0, height = 0;
   int prevTargetWidth = 0, prevTargetHeight = 0;
+  bool success = true; // false → caller retries
 
   av_log_set_callback(ffmpeg_log_callback);
-  av_log_set_level(AV_LOG_DEBUG); // 상세 에러 추적을 위해 DEBUG 로 변경
+  av_log_set_level(AV_LOG_WARNING);
   avformat_network_init();
 
   m_formatCtx = avformat_alloc_context();
   if (!m_formatCtx) {
     fprintf(stderr, "[Video] FFmpeg: 컨텍스트 할당 실패\n");
-    goto cleanup_and_exit;
+    return false;
   }
 
-  // 인터럽트 콜백 등록: 프로그램 종료 시(m_stopThread == true)
-  // blocking 상태의 av_read_frame 을 즉시 중단시킵니다.
   m_formatCtx->interrupt_callback.callback = [](void *ctx) -> int {
     auto *stopFlag = static_cast<std::atomic<bool> *>(ctx);
     return (*stopFlag) ? 1 : 0;
@@ -69,18 +83,12 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   m_formatCtx->probesize = 5000000;
   m_formatCtx->max_analyze_duration = 2000000;
 
-  // 모든 RTSP 연결에 UDP 사용
   av_dict_set(&options, "rtsp_transport", "udp", 0);
   av_dict_set(&options, "flags", "low_delay", 0);
-
-  // 대신 깨진 프레임(corrupt)을 폐기하여 디코더 크래시 방지 및 0.5초(500000us)
-  // 지터 버퍼 허용
   av_dict_set(&options, "fflags", "discardcorrupt", 0);
   av_dict_set(&options, "max_delay", "500000", 0);
-
   av_dict_set(&options, "stimeout", "20000000", 0);
-  av_dict_set(&options, "buffer_size", "20000000",
-              0); // TCP 소켓 수신 최대 버퍼 증가
+  av_dict_set(&options, "buffer_size", "20000000", 0);
 
   fprintf(stderr, "[Video] 스트림 연결 시도: %s\n", url.c_str());
 
@@ -90,7 +98,7 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
       av_dict_free(&options);
     avformat_free_context(m_formatCtx);
     m_formatCtx = nullptr;
-    goto cleanup_and_exit;
+    return false;
   }
   if (options)
     av_dict_free(&options);
@@ -107,7 +115,8 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   }
   if (m_videoStreamIndex == -1) {
     fprintf(stderr, "[Video] 비디오 스트림을 찾을 수 없음\n");
-    goto cleanup_and_exit;
+    cleanupFFmpeg();
+    return false;
   }
 
   codec = avcodec_find_decoder(
@@ -125,23 +134,28 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
   }
   m_codecCtx->thread_count = 2;
   m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
-  m_codecCtx->skip_loop_filter = AVDISCARD_ALL; // CPU 디코딩 연산 극적 감소
+  m_codecCtx->skip_loop_filter = AVDISCARD_ALL;
   m_codecCtx->skip_frame = AVDISCARD_DEFAULT;
 
   if (avcodec_open2(m_codecCtx, codec, nullptr) < 0) {
     fprintf(stderr, "[Video] 코덱 오픈 실패\n");
-    goto cleanup_and_exit;
+    cleanupFFmpeg();
+    return false;
   }
 
   frame = av_frame_alloc();
   frameRGB = av_frame_alloc();
   packet = av_packet_alloc();
 
-  fprintf(stderr, "[Video] 디코딩 루프 시작\n");
+  fprintf(stderr, "[Video] 디코딩 시작\n");
+
+  int consecutiveErrors = 0;
+  constexpr int kMaxErrors = 50; // ~0.5초 (10ms × 50)
 
   while (!m_stopThread) {
     int ret = av_read_frame(m_formatCtx, packet);
     if (ret >= 0) {
+      consecutiveErrors = 0;
       if (packet->stream_index == m_videoStreamIndex) {
         if (avcodec_send_packet(m_codecCtx, packet) == 0) {
           while (true) {
@@ -149,15 +163,12 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
             if (recv != 0)
               break;
 
-            // 디코딩은 항상 최고속도로 해서 버퍼를 비운다.
-            // 하지만 화면에 그리지 않을 프레임은 여기서 드랍(변환 생략)
             auto now = std::chrono::steady_clock::now();
             auto elapsed =
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     now - m_lastUpdateTime)
                     .count();
 
-            // 33ms (약 30fps) 경과 시에만 변환 진행
             if (elapsed >= Config::VIDEO_FPS_LIMIT_MS) {
               m_lastUpdateTime = now;
 
@@ -208,10 +219,8 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
                   break;
                 }
               }
-
-              if (!targetBuffer) {
+              if (!targetBuffer)
                 continue;
-              }
 
               av_image_fill_arrays(frameRGB->data, frameRGB->linesize,
                                    targetBuffer->data(), AV_PIX_FMT_RGBA,
@@ -231,18 +240,25 @@ void Video::decodeLoopFFmpeg(const std::string &url) {
       }
       av_packet_unref(packet);
     } else {
+      // av_read_frame 실패: 연속 오류가 kMaxErrors 에 달하면 재연결 시도
+      ++consecutiveErrors;
+      if (consecutiveErrors >= kMaxErrors) {
+        fprintf(stderr, "[Video] 연속 %d 회 read 실패 — 재연결\n", kMaxErrors);
+        success = false;
+        break;
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 
-cleanup_and_exit:
   if (packet)
     av_packet_free(&packet);
   if (frameRGB)
     av_frame_free(&frameRGB);
   if (frame)
     av_frame_free(&frame);
-  fprintf(stderr, "[Video] 디코딩 루프 종료\n");
+  cleanupFFmpeg();
+  return success;
 }
 
 void Video::cleanupFFmpeg() {

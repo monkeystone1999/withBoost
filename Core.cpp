@@ -38,8 +38,8 @@
 #include "Qt/Back/VideoManager.hpp"
 
 #include <QDebug>
-#include <QMetaType>
 #include <QMetaObject>
+#include <QMetaType>
 #include <QQmlContext>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,6 +234,16 @@ void Core::wireSignals() {
                    &VideoManager::registerSlots);
   QObject::connect(m_cameraModel, &CameraModel::urlsUpdated, m_videoManager,
                    &VideoManager::registerUrls);
+
+  // F-2: When a camera comes back online, restart its stream worker
+  QObject::connect(m_cameraModel, &CameraModel::cameraOnline, m_videoManager,
+                   &VideoManager::restartWorker);
+
+  // ── Logout ──────────────────────────────────────────────────────────────
+  QObject::connect(m_login, &Login::logoutRequested, m_videoManager,
+                   &VideoManager::clearAll);
+  QObject::connect(m_login, &Login::logoutRequested, m_cameraModel,
+                   &CameraModel::clearAll);
 
   qDebug() << "[Core] signals wired";
 }

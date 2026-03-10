@@ -9,11 +9,31 @@ Window {
     height: 800
     visible: true
     color: "transparent"
-    // 프레임리스 설정
     flags: Qt.Window | Qt.FramelessWindowHint
 
-    // 앱 종료 시 모든 자식 창(새창)과 함께 완전히 프로세스가 종료되도록 함
     onClosing: Qt.quit()
+
+    // ── 열려있는 CameraWindow 목록 ───────────────────────────────────────────
+    property var openCameraWindows: []
+
+    function registerCameraWindow(win) {
+        openCameraWindows.push(win);
+    }
+    function unregisterCameraWindow(win) {
+        openCameraWindows = openCameraWindows.filter(w => w !== win);
+    }
+    function closeAllCameraWindows() {
+        var list = openCameraWindows.slice();
+        for (var i = 0; i < list.length; i++) {
+            list[i].close();
+        }
+        openCameraWindows = [];
+    }
+
+    // ── Option Dialog ───────────────────────────────────────────────────────
+    function openOptionDialog() {
+        optionDialog.open();
+    }
 
     WindowAgent {
         id: agent
@@ -133,7 +153,7 @@ Window {
                 stackView.replace(null, "View/MyPage.qml");
                 break;
             case "Settings":
-                stackView.replace(null, "View/SettingsPage.qml");
+                root.openOptionDialog();
                 break;
             case "Login":
                 stackView.replace(null, "View/LoginPage.qml");
@@ -272,7 +292,7 @@ Window {
                 stackView.replace(null, "View/SignupPage.qml");
                 break;
             case "Settings":
-                stackView.replace(null, "View/SettingsPage.qml");
+                root.openOptionDialog();
                 break;
             case "Back":
                 stackView.pop();
@@ -281,12 +301,233 @@ Window {
                 console.log("Unknown page:", pageName);
             }
         }
+        function onRequestClose() {
+            if (stackView.depth > 1) {
+                stackView.pop();
+            }
+        }
     }
 
     Connections {
         target: titleBar.menuBtn
         function onClicked() {
             sideNav.toggle();
+        }
+    }
+
+    // ── Option Dialog (Floating Popup) ────────────────────────────────────────
+    Popup {
+        id: optionDialog
+        anchors.centerIn: parent
+        width: 440
+        height: optDialogCol.implicitHeight + 56
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        padding: 0
+
+        background: Rectangle {
+            color: Theme.bgSecondary
+            radius: 14
+            layer.enabled: true
+            layer.effect: null  // shadow via border instead for simplicity
+            border.color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
+            border.width: 1
+        }
+
+        Column {
+            id: optDialogCol
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 0
+            spacing: 0
+
+            // — Title Bar —
+            Rectangle {
+                width: parent.width
+                height: 52
+                color: "transparent"
+                radius: 14
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "⚙️  Option"
+                    font.pixelSize: 17
+                    font.bold: true
+                    color: Theme.fontColor
+                }
+
+                // Close X
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: 14
+                    width: 28
+                    height: 28
+                    radius: 14
+                    color: closeOptHov.containsMouse ? (Theme.isDark ? "#555" : "#ddd") : "transparent"
+                    Text {
+                        anchors.centerIn: parent
+                        text: "×"
+                        font.pixelSize: 20
+                        color: Theme.fontColor
+                    }
+                    MouseArea {
+                        id: closeOptHov
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: optionDialog.close()
+                    }
+                }
+
+                // Divider
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+                    height: 1
+                    color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
+                }
+            }
+
+            // — Rows —
+            Column {
+                width: parent.width
+                spacing: 0
+                padding: 0
+
+                // 1. Dark Mode
+                OptRow {
+                    label: "🌙  Dark Mode"
+                    content: Switch {
+                        checked: Theme.isDark
+                        onToggled: Theme.isDark = !Theme.isDark
+                    }
+                }
+
+                // 2. 알람음
+                OptRow {
+                    label: "🔔  Alarm Sound"
+                    content: Switch {
+                        id: alarmSoundSwitch
+                        checked: true  // TODO: bind to actual setting
+                    }
+                }
+
+                // 3. 그리드 레이아웃
+                OptRow {
+                    label: "🗖  Default Grid"
+                    content: Row {
+                        spacing: 6
+                        Repeater {
+                            model: [2, 3, 4]
+                            delegate: Rectangle {
+                                width: 36
+                                height: 28
+                                radius: 6
+                                color: defGridBtn.containsMouse ? Theme.hanwhaFirst : (Theme.isDark ? "#3A3A3C" : "#E5E5EA")
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData
+                                    font.pixelSize: 13
+                                    color: Theme.fontColor
+                                }
+                                MouseArea {
+                                    id: defGridBtn
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: console.log("Default grid set to", modelData) // TODO
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. 주서버 주소 (readonly)
+                OptRow {
+                    label: "🌐  Server"
+                    content: Text {
+                        text: typeof networkBridge !== "undefined" ? networkBridge.serverAddress : "--"
+                        font.pixelSize: 13
+                        color: Theme.isDark ? "#888" : "#666"
+                    }
+                }
+
+                // 5. 로깁 레벨
+                OptRow {
+                    label: "📜  Log Level"
+                    content: Row {
+                        spacing: 6
+                        Repeater {
+                            model: ["INFO", "WARN", "DEBUG"]
+                            delegate: Rectangle {
+                                width: 52
+                                height: 26
+                                radius: 6
+                                color: logBtn.containsMouse ? Theme.hanwhaFirst : (Theme.isDark ? "#3A3A3C" : "#E5E5EA")
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData
+                                    font.pixelSize: 11
+                                    color: Theme.fontColor
+                                }
+                                MouseArea {
+                                    id: logBtn
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: console.log("Log level:", modelData)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 6. 앱 버전
+                OptRow {
+                    label: "ℹ️  Version"
+                    content: Text {
+                        text: "1.0.0"
+                        font.pixelSize: 13
+                        color: Theme.isDark ? "#888" : "#666"
+                    }
+                }
+            }
+        }
+    }
+
+    // Row helper component
+    component OptRow: Item {
+        property string label: ""
+        property alias content: contentSlot.data
+        width: optDialogCol.width
+        height: 52
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 24
+            anchors.verticalCenter: parent.verticalCenter
+            text: parent.label
+            font.pixelSize: 14
+            color: Theme.fontColor
+        }
+        Item {
+            id: contentSlot
+            anchors.right: parent.right
+            anchors.rightMargin: 24
+            anchors.verticalCenter: parent.verticalCenter
+            width: childrenRect.width
+            height: childrenRect.height
+        }
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            height: 1
+            color: Theme.isDark ? "#2A2A2C" : "#E5E5EA"
         }
     }
 }

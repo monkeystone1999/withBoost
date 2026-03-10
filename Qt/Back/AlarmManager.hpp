@@ -24,10 +24,6 @@ public slots:
   // New path: called by Core on the GUI thread with a pre-parsed event
   void onAlarm(AlarmEvent ev);
 
-  // Legacy: direct-connect from NetworkBridge::aiResultReceived
-  // Immediately dispatches raw JSON to the ThreadPool via AlarmDispatcher
-  void onAiJson(const QString &json);
-
 signals:
   void alarmTriggered(QString title, QString detail, int severity);
 

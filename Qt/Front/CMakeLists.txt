@@ -16,20 +16,25 @@ qt_add_qml_module(FrontEnd
         Main.qml
         Titlebar.qml
         Component/BasicButton.qml
-        Component/CameraCard.qml
-        Component/CameraWindow.qml
-        Component/CameraWindowTitlebar.qml
+        Component/camera/CameraCard.qml
+        Component/camera/CameraWindow.qml
+        Component/camera/CameraWindowTitlebar.qml
+        Component/dashboard/GridColumnSelector.qml
+        Component/dashboard/AdminStatusBar.qml
+        Component/dashboard/DashboardContextMenu.qml
         Component/InputText.qml
         Component/SystemButton.qml
         Component/SideNavPanel.qml
         Component/NavItem.qml
         Component/AlarmCard.qml
         Component/VideoSurface.qml
-        Component/DeviceControlBar.qml
+        Component/device/DeviceControlBar.qml
+        Component/device/DeviceBadge.qml
         Theme/Icon.qml
         Theme/Theme.qml
         Theme/Typography.qml
-        View/HomePage.qml
+        Layout/DashboardLayout.qml
+        Layout/DeviceListLayout.qml
         View/DashboardPage.qml
         View/AIPage.qml
         View/DevicePage.qml

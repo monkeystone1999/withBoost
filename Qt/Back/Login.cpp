@@ -1,9 +1,7 @@
 #include "Login.hpp"
 #include <QDebug>
 
-Login::Login(NetworkBridge *bridge,
-             const QString &host,
-             const QString &port,
+Login::Login(NetworkBridge *bridge, const QString &host, const QString &port,
              QObject *parent)
     : QObject(parent), m_bridge(bridge), m_host(host), m_port(port) {
   if (m_bridge) {
@@ -11,7 +9,7 @@ Login::Login(NetworkBridge *bridge,
             &Login::handleLoginSuccess);
     connect(m_bridge, &NetworkBridge::loginFailed, this,
             &Login::handleLoginFailed);
-    connect(m_bridge, &NetworkBridge::connectedToServer, this,
+    connect(m_bridge, &NetworkBridge::connectedForLogin, this,
             &Login::onConnected);
   }
 }
@@ -48,7 +46,7 @@ void Login::login(const QString &id, const QString &password) {
       onConnected();
     } else {
       qDebug() << "[Login] Connecting to" << m_host << m_port;
-      m_bridge->connectToServer(m_host, m_port);
+      m_bridge->connectToServer(m_host, m_port, "login");
     }
   } else {
     qDebug() << "[Login] ERROR: m_bridge is null";
@@ -119,4 +117,6 @@ void Login::logout() {
   m_errorMessage.clear();
   emit isErrorChanged();
   emit errorMessageChanged();
+
+  emit logoutRequested();
 }

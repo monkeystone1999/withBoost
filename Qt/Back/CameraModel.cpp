@@ -1,9 +1,6 @@
 #include "CameraModel.hpp"
 #include "../../Src/Config.hpp"
 #include <QHash>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QString>
 #include <utility>
 
@@ -85,18 +82,23 @@ void CameraModel::swapSlots(int indexA, int indexB) {
       indexB >= m_cameras.size() || indexA == indexB)
     return;
 
-  std::swap(m_cameras[indexA], m_cameras[indexB]);
+  // slotId/cropRect/splitCount/splitGroupId/splitIndex 는 "그리드 위치"의
+  // 속성이므로 그 자리에 유지한다. rtspUrl, title, cameraType, isOnline,
+  // description 만 교환한다.
+  auto &a = m_cameras[indexA];
+  auto &b = m_cameras[indexB];
+  std::swap(a.rtspUrl, b.rtspUrl);
+  std::swap(a.title, b.title);
+  std::swap(a.cameraType, b.cameraType);
+  std::swap(a.isOnline, b.isOnline);
+  std::swap(a.description, b.description);
 
   const auto idxA = createIndex(indexA, 0);
   const auto idxB = createIndex(indexB, 0);
-  emit dataChanged(idxA, idxA,
-                   {SlotIdRole, TitleRole, RtspUrlRole, IsOnlineRole,
-                    DescriptionRole, CardWidthRole, CardHeightRole,
-                    CameraTypeRole, SplitCountRole, CropRectRole});
-  emit dataChanged(idxB, idxB,
-                   {SlotIdRole, TitleRole, RtspUrlRole, IsOnlineRole,
-                    DescriptionRole, CardWidthRole, CardHeightRole,
-                    CameraTypeRole, SplitCountRole, CropRectRole});
+  const QList<int> roles = {TitleRole, RtspUrlRole, IsOnlineRole,
+                            DescriptionRole, CameraTypeRole};
+  emit dataChanged(idxA, idxA, roles);
+  emit dataChanged(idxB, idxB, roles);
 }
 
 void CameraModel::setOnline(int index, bool online) {
@@ -284,6 +286,38 @@ void CameraModel::clearAll() {
   _emitSlotsUpdated();
 }
 
+bool CameraModel::hasSlot(int slotId) const {
+  return _indexBySlotId(slotId) >= 0;
+}
+
+QString CameraModel::titleForSlot(int slotId) const {
+  const int idx = _indexBySlotId(slotId);
+  if (idx < 0)
+    return QString();
+  return m_cameras[idx].title;
+}
+
+QString CameraModel::rtspUrlForSlot(int slotId) const {
+  const int idx = _indexBySlotId(slotId);
+  if (idx < 0)
+    return QString();
+  return m_cameras[idx].rtspUrl;
+}
+
+bool CameraModel::isOnlineForSlot(int slotId) const {
+  const int idx = _indexBySlotId(slotId);
+  if (idx < 0)
+    return false;
+  return m_cameras[idx].isOnline;
+}
+
+QRectF CameraModel::cropRectForSlot(int slotId) const {
+  const int idx = _indexBySlotId(slotId);
+  if (idx < 0)
+    return QRectF(0, 0, 1, 1);
+  return m_cameras[idx].cropRect;
+}
+
 void CameraModel::onStoreUpdated(std::vector<CameraData> snapshot) {
   QHash<QString, CameraData> snapshotByUrl;
   for (const auto &cam : snapshot) {
@@ -315,9 +349,14 @@ void CameraModel::onStoreUpdated(std::vector<CameraData> snapshot) {
       representedUrls.insert(entry.rtspUrl);
 
       if (entry.isOnline != snap.isOnline) {
+        const bool wasOffline = !entry.isOnline;
         entry.isOnline = snap.isOnline;
         changed = true;
         changedRoles << IsOnlineRole;
+        // Emit reconnection signal when coming back online
+        if (wasOffline && snap.isOnline) {
+          emit cameraOnline(entry.rtspUrl);
+        }
       }
 
       QString snapType = QString::fromStdString(snap.cameraType);
@@ -397,29 +436,4 @@ void CameraModel::_emitSlotsUpdated() {
   }
   emit slotsUpdated(slotList);
   emit urlsUpdated(urls);
-}
-
-void CameraModel::refreshFromJson(const QString &jsonString) {
-  QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8());
-  if (!doc.isArray())
-    return;
-
-  std::vector<CameraData> snapshot;
-  const QJsonArray arr = doc.array();
-  snapshot.reserve(arr.size());
-
-  for (const auto &item : arr) {
-    const QJsonObject obj = item.toObject();
-    CameraData d;
-    d.cameraType = obj["type"].toString().toStdString();
-    const QString ip = obj["ip"].toString();
-    d.title =
-        (ip + " (" + QString::fromStdString(d.cameraType) + ")").toStdString();
-    d.rtspUrl = obj["source_url"].toString().toStdString();
-    d.isOnline = obj["is_online"].toBool();
-    if (!d.rtspUrl.empty())
-      snapshot.push_back(std::move(d));
-  }
-
-  onStoreUpdated(std::move(snapshot));
 }
