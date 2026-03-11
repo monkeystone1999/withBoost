@@ -1,5 +1,5 @@
 #pragma once
-#include "../../Src/Domain/DeviceData.hpp"
+#include "../../Src/Domain/Device.hpp"
 #include <QAbstractListModel>
 #include <QHash>
 #include <QList>

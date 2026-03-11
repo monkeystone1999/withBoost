@@ -15,18 +15,16 @@ add_library(AnoMapSTD STATIC
     Network/Video.cpp
     Network/Session.hpp
     Network/Session.cpp
-    Domain/AlarmEvent.hpp
-    Domain/AlarmDispatcher.hpp
-    Domain/AlarmDispatcher.cpp
-    Domain/CameraData.hpp
-    Domain/CameraStore.hpp
-    Domain/CameraStore.cpp
-    Domain/DeviceData.hpp
-    Domain/DeviceStore.hpp
-    Domain/DeviceStore.cpp
-    Domain/ServerStatusData.hpp
-    Domain/ServerStatusStore.hpp
-    Domain/ServerStatusStore.cpp
+    Domain/IStore.hpp
+    Domain/Alarm.hpp
+    Domain/Alarm.cpp
+    Domain/Camera.hpp
+    Domain/Camera.cpp
+    Domain/Device.hpp
+    Domain/Device.cpp
+    Domain/ServerStatus.hpp
+    Domain/ServerStatus.cpp
+    Domain/User.hpp
     Config.hpp
 )
 

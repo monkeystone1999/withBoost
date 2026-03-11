@@ -1,31 +1,32 @@
 
 qt_add_library(BackEnd STATIC
-    Login.cpp
-    Login.hpp
-    Signup.cpp
-    Signup.hpp
-    CameraModel.hpp
-    CameraModel.cpp
-    DeviceModel.hpp
-    DeviceModel.cpp
+    Auth.cpp
+    Auth.hpp
+    Camera.hpp
+    Camera.cpp
+    Device.hpp
+    Device.cpp
     NetworkBridge.hpp
     NetworkBridge.cpp
     AlarmManager.hpp
     AlarmManager.cpp
-    VideoWorker.hpp
-    VideoWorker.cpp
-    VideoManager.hpp
-    VideoManager.cpp
+    VideoStream.hpp
+    VideoStream.cpp
+    VideoFrameTexture.hpp
+    VideoFrameTexture.cpp
     VideoSurfaceItem.hpp
     VideoSurfaceItem.cpp
-    ServerStatusModel.hpp
-    ServerStatusModel.cpp
+    ServerStatus.hpp
+    ServerStatus.cpp
+    UserModel.cpp
+    UserModel.hpp
 )
 
 target_link_libraries(BackEnd PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Quick
+    Qt6::GuiPrivate
     AnoMapSTD
 )
 

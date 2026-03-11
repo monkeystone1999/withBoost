@@ -15,8 +15,8 @@
 //         shutdown() tears down in reverse order.
 // ============================================================
 
-#include <memory>
 #include <QQmlEngine>
+#include <memory>
 
 // ── Layer 1 forward declarations (pure C++, no Qt headers) ───────────────────
 class ThreadPool;
@@ -28,49 +28,51 @@ class AlarmDispatcher;
 
 // ── Layer 2 forward declarations (QObject adapters) ──────────────────────────
 class NetworkBridge;
-class Login;
-class Signup;
+class LoginController;
+class SignupController;
 class CameraModel;
 class DeviceModel;
 class ServerStatusModel;
+class UserModel;
 class VideoManager;
 class AlarmManager;
 
 class Core {
 public:
-    Core();
-    ~Core();
+  Core();
+  ~Core();
 
-    // Called once from App.cpp after Qt engine setup.
-    // Constructs all objects, wires signals, registers context properties.
-    void init(QQmlEngine &engine);
+  // Called once from App.cpp after Qt engine setup.
+  // Constructs all objects, wires signals, registers context properties.
+  void init(QQmlEngine &engine);
 
-    // Called from QGuiApplication::aboutToQuit.
-    // Tears down in reverse construction order.
-    void shutdown();
+  // Called from QGuiApplication::aboutToQuit.
+  // Tears down in reverse construction order.
+  void shutdown();
 
 private:
-    void constructLayer1();
-    void constructLayer2(QQmlEngine &engine);
-    void wireSignals();
-    void registerContextProperties(QQmlEngine &engine);
+  void constructLayer1();
+  void constructLayer2(QQmlEngine &engine);
+  void wireSignals();
+  void registerContextProperties(QQmlEngine &engine);
 
-    // ── Layer 1 — owned here (destroyed in ~Core) ────────────────────────
-    std::unique_ptr<ThreadPool>         m_threadPool;
-    std::unique_ptr<NetworkService>     m_networkService;
-    std::unique_ptr<CameraStore>        m_cameraStore;
-    std::unique_ptr<DeviceStore>        m_deviceStore;
-    std::unique_ptr<ServerStatusStore>  m_serverStatusStore;
-    std::unique_ptr<AlarmDispatcher>    m_alarmDispatcher;
+  // ── Layer 1 — owned here (destroyed in ~Core) ────────────────────────
+  std::unique_ptr<ThreadPool> m_threadPool;
+  std::unique_ptr<NetworkService> m_networkService;
+  std::unique_ptr<CameraStore> m_cameraStore;
+  std::unique_ptr<DeviceStore> m_deviceStore;
+  std::unique_ptr<ServerStatusStore> m_serverStatusStore;
+  std::unique_ptr<AlarmDispatcher> m_alarmDispatcher;
 
-    // ── Layer 2 — parented to QQmlEngine, not owned by Core ─────────────
-    // Raw pointers only — QQmlEngine destructor handles deletion.
-    NetworkBridge     *m_networkBridge   = nullptr;
-    Login             *m_login           = nullptr;
-    Signup            *m_signup          = nullptr;
-    CameraModel       *m_cameraModel     = nullptr;
-    DeviceModel       *m_deviceModel     = nullptr;
-    ServerStatusModel *m_serverStatus    = nullptr;
-    VideoManager      *m_videoManager    = nullptr;
-    AlarmManager      *m_alarmManager    = nullptr;
+  // ── Layer 2 — parented to QQmlEngine, not owned by Core ─────────────
+  // Raw pointers only — QQmlEngine destructor handles deletion.
+  NetworkBridge *m_networkBridge = nullptr;
+  LoginController *m_login = nullptr;
+  SignupController *m_signup = nullptr;
+  CameraModel *m_cameraModel = nullptr;
+  DeviceModel *m_deviceModel = nullptr;
+  ServerStatusModel *m_serverStatus = nullptr;
+  UserModel *m_userModel = nullptr;
+  VideoManager *m_videoManager = nullptr;
+  AlarmManager *m_alarmManager = nullptr;
 };

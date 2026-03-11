@@ -1,4 +1,4 @@
-#include "CameraModel.hpp"
+#include "Camera.hpp"
 #include "../../Src/Config.hpp"
 #include <QHash>
 #include <QString>
@@ -37,8 +37,10 @@ QVariant CameraModel::data(const QModelIndex &index, int role) const {
     return cam.splitCount;
   case CropRectRole:
     return cam.cropRect;
+  case SplitDirectionRole:
+    return static_cast<int>(cam.splitDirection);
   default:
-    return {};
+    return QVariant();
   }
 }
 
@@ -68,13 +70,17 @@ bool CameraModel::setData(const QModelIndex &index, const QVariant &value,
 }
 
 QHash<int, QByteArray> CameraModel::roleNames() const {
-  return {
-      {SlotIdRole, "slotId"},           {TitleRole, "title"},
-      {RtspUrlRole, "rtspUrl"},         {IsOnlineRole, "isOnline"},
-      {DescriptionRole, "description"}, {CardWidthRole, "cardWidth"},
-      {CardHeightRole, "cardHeight"},   {CameraTypeRole, "cameraType"},
-      {SplitCountRole, "splitCount"},   {CropRectRole, "cropRect"},
-  };
+  return {{SlotIdRole, "slotId"},
+          {TitleRole, "title"},
+          {RtspUrlRole, "rtspUrl"},
+          {IsOnlineRole, "isOnline"},
+          {DescriptionRole, "description"},
+          {CardWidthRole, "cardWidth"},
+          {CardHeightRole, "cardHeight"},
+          {CameraTypeRole, "cameraType"},
+          {SplitCountRole, "splitCount"},
+          {CropRectRole, "cropRect"},
+          {SplitDirectionRole, "splitDirection"}};
 }
 
 void CameraModel::swapSlots(int indexA, int indexB) {
@@ -83,8 +89,7 @@ void CameraModel::swapSlots(int indexA, int indexB) {
     return;
 
   // slotId/cropRect/splitCount/splitGroupId/splitIndex 는 "그리드 위치"의
-  // 속성이므로 그 자리에 유지한다. rtspUrl, title, cameraType, isOnline,
-  // description 만 교환한다.
+  // 속성이므로 그 자리에 유지한다. 영상 콘텐츠 속성만 교환한다.
   auto &a = m_cameras[indexA];
   auto &b = m_cameras[indexB];
   std::swap(a.rtspUrl, b.rtspUrl);
@@ -97,7 +102,21 @@ void CameraModel::swapSlots(int indexA, int indexB) {
   const auto idxB = createIndex(indexB, 0);
   const QList<int> roles = {TitleRole, RtspUrlRole, IsOnlineRole,
                             DescriptionRole, CameraTypeRole};
-  emit dataChanged(idxA, idxA, roles);
+
+  // ────────────────────────────────────────────────────────────────────
+  // CRITICAL: 타이밍 역전 방지
+  //
+  // _emitSlotsUpdated()를 먼저 호출하여 m_slotToUrl을 갱신한 후,
+  // dataChanged를 emit하여 QML에 통보한다.
+  //
+  // dataChanged emit 시 QML 바인딩이 즉시 동기적으로 전파되어
+  // VideoSurface._tryAttach()가 호출된다.
+  // _tryAttach() 내부에서 getWorkerBySlot()을 호출할 때
+  // m_slotToUrl이 이미 올바른 상태여야 한다.
+  // ────────────────────────────────────────────────────────────────────
+  _emitSlotsUpdated();  // ← 먼저 실행: m_slotToUrl 갱신
+
+  emit dataChanged(idxA, idxA, roles);  // ← 그 다음 QML 통보
   emit dataChanged(idxB, idxB, roles);
 }
 
@@ -109,28 +128,37 @@ void CameraModel::setOnline(int index, bool online) {
   emit dataChanged(idx, idx, {IsOnlineRole});
 }
 
-QRectF CameraModel::computeCropRect(int tileIndex, int tileCount) {
-  switch (tileCount) {
-  case 2:
-    return tileIndex == 0 ? QRectF(0.0, 0.0, 0.5, 1.0)
-                          : QRectF(0.5, 0.0, 0.5, 1.0);
-  case 3:
-    if (tileIndex == 0)
-      return QRectF(0.000, 0.0, 0.333, 1.0);
-    if (tileIndex == 1)
-      return QRectF(0.333, 0.0, 0.334, 1.0);
-    return QRectF(0.667, 0.0, 0.333, 1.0);
-  case 4:
-    if (tileIndex == 0)
-      return QRectF(0.0, 0.0, 0.5, 0.5);
-    if (tileIndex == 1)
-      return QRectF(0.5, 0.0, 0.5, 0.5);
-    if (tileIndex == 2)
-      return QRectF(0.0, 0.5, 0.5, 0.5);
-    return QRectF(0.5, 0.5, 0.5, 0.5);
-  default:
-    return {0, 0, 1, 1};
+QRectF CameraModel::computeCropRect(int tileIndex, int tileCount,
+                                    SplitDirection direction) {
+  // -- Col: X-axis n-way split -----------------------------------------------
+  if (direction == SplitDirection::Col) {
+    if (tileCount < 2 || tileCount > 4)
+      return {0, 0, 1, 1};
+    const qreal w = 1.0 / tileCount;
+    // Calculate with precision to avoid gaps
+    const qreal x = tileIndex * w;
+    const qreal end = (tileIndex == tileCount - 1) ? 1.0 : x + w;
+    return QRectF(x, 0.0, end - x, 1.0);
   }
+
+  // -- Row: Y-axis n-way split -----------------------------------------------
+  if (direction == SplitDirection::Row) {
+    if (tileCount < 2 || tileCount > 3)
+      return {0, 0, 1, 1};
+    const qreal h = 1.0 / tileCount;
+    const qreal y = tileIndex * h;
+    const qreal end = (tileIndex == tileCount - 1) ? 1.0 : y + h;
+    return QRectF(0.0, y, 1.0, end - y);
+  }
+
+  // -- Grid: 2x2 Grid (tileCount == 4 only) ----------------------------------
+  if (direction == SplitDirection::Grid && tileCount == 4) {
+    const qreal col = (tileIndex % 2) * 0.5;
+    const qreal row = (tileIndex / 2) * 0.5;
+    return QRectF(col, row, 0.5, 0.5);
+  }
+
+  return {0, 0, 1, 1};
 }
 
 int CameraModel::_indexBySlotId(int slotId) const {
@@ -141,15 +169,20 @@ int CameraModel::_indexBySlotId(int slotId) const {
   return -1;
 }
 
-bool CameraModel::_isValidTileCount(int tileCount) const {
-  return tileCount >= 2 && tileCount <= 4;
-}
-
 bool CameraModel::_splitSlotAtIndex(int rowIndex, int tileCount,
-                                    bool autoSplit) {
+                                    SplitDirection direction, bool autoSplit) {
   if (rowIndex < 0 || rowIndex >= m_cameras.size())
     return false;
-  if (!_isValidTileCount(tileCount))
+
+  bool validCount = false;
+  if (direction == SplitDirection::Col)
+    validCount = (tileCount >= 2 && tileCount <= 4);
+  if (direction == SplitDirection::Row)
+    validCount = (tileCount == 2 || tileCount == 3);
+  if (direction == SplitDirection::Grid)
+    validCount = (tileCount == 4);
+
+  if (!validCount)
     return false;
   if (m_cameras[rowIndex].splitCount != 1)
     return false;
@@ -173,9 +206,11 @@ bool CameraModel::_splitSlotAtIndex(int rowIndex, int tileCount,
     e.isOnline = original.isOnline;
     e.cameraType = original.cameraType;
     e.splitCount = tileCount;
-    e.cropRect = computeCropRect(i, tileCount);
+    e.splitDirection = direction;
     e.splitGroupId = splitGroupId;
     e.splitIndex = i;
+    e.cropRect = computeCropRect(i, tileCount, direction);
+    e.description = original.description;
     m_cameras.insert(rowIndex + i, e);
     if (autoSplit)
       m_autoSplitAppliedSlotIds.insert(e.slotId);
@@ -191,52 +226,54 @@ bool CameraModel::_mergeGroupByIndex(int anyTileRowIndex) {
   if (anyTileRowIndex < 0 || anyTileRowIndex >= m_cameras.size())
     return false;
 
-  const CameraEntry base = m_cameras[anyTileRowIndex];
-  if (base.splitCount <= 1 || base.splitGroupId < 0)
+  const CameraEntry target = m_cameras[anyTileRowIndex];
+  if (target.splitCount <= 1 || target.splitGroupId < 0)
     return false;
 
-  // No reset model — use granular list updates
   QList<int> groupIndices;
-  groupIndices.reserve(base.splitCount);
   for (int i = 0; i < m_cameras.size(); ++i) {
-    if (m_cameras[i].splitGroupId == base.splitGroupId)
+    if (m_cameras[i].splitGroupId == target.splitGroupId)
       groupIndices.push_back(i);
   }
 
   if (groupIndices.size() < 2)
     return false;
 
-  int firstIndex = groupIndices.front();
-  QString mergedTitle = base.title;
-  const int marker = mergedTitle.lastIndexOf(" [");
-  if (marker > 0 && mergedTitle.endsWith(']'))
-    mergedTitle = mergedTitle.left(marker);
+  // We will keep the first tile in the list as the "merged" card's position
+  int firstPos = groupIndices.front();
 
-  // 1. Remove all tiles in the group
-  beginRemoveRows(QModelIndex(), groupIndices.front(), groupIndices.back());
-  for (int i = groupIndices.size() - 1; i >= 0; --i) {
-    const int idx = groupIndices[i];
-    m_autoSplitAppliedSlotIds.remove(m_cameras[idx].slotId);
-    m_cameras.removeAt(idx);
+  // 1. Remove all tiles EXCEPT the first one
+  // Must remove in reverse order to keep indices valid during removal
+  for (int i = groupIndices.size() - 1; i > 0; --i) {
+    int posToRemove = groupIndices[i];
+    beginRemoveRows(QModelIndex(), posToRemove, posToRemove);
+    m_autoSplitAppliedSlotIds.remove(m_cameras[posToRemove].slotId);
+    m_cameras.removeAt(posToRemove);
+    endRemoveRows();
+
+    // If the removed tile was before any other tiles in our list (shouldn't
+    // happen with sorted groupIndices), we'd need to adjust. But groupIndices
+    // is sorted (0..size).
   }
-  endRemoveRows();
 
-  // 2. Insert the single merged entry
-  CameraEntry merged;
-  merged.slotId = m_nextSlotId++;
-  merged.rtspUrl = base.rtspUrl;
-  merged.title = mergedTitle;
-  merged.isOnline = base.isOnline;
-  merged.cameraType = base.cameraType;
+  // 2. Update the first tile in-place
+  auto &merged = m_cameras[firstPos];
+  // Preserve merged.slotId -> Identity preserved!
+
+  // Cleanup title
+  QString newTitle = merged.title;
+  const int marker = newTitle.lastIndexOf(" [");
+  if (marker > 0 && newTitle.endsWith(']'))
+    newTitle = newTitle.left(marker);
+
+  merged.title = newTitle;
   merged.splitCount = 1;
   merged.cropRect = {0, 0, 1, 1};
   merged.splitGroupId = -1;
   merged.splitIndex = 0;
+  merged.splitDirection = SplitDirection::Col; // Reset to default
 
-  beginInsertRows(QModelIndex(), firstIndex, firstIndex);
-  m_cameras.insert(firstIndex, merged);
-  endInsertRows();
-
+  emit dataChanged(createIndex(firstPos, 0), createIndex(firstPos, 0));
   _emitSlotsUpdated();
   return true;
 }
@@ -252,14 +289,17 @@ bool CameraModel::_autoSplitForIndex(int rowIndex) {
 
   const std::string url = entry.rtspUrl.toStdString();
   const int tileCount = Config::autoSplitTileCountForUrl(url);
-  if (!_isValidTileCount(tileCount))
-    return false;
 
-  return _splitSlotAtIndex(rowIndex, tileCount, true);
+  return _splitSlotAtIndex(rowIndex, tileCount, SplitDirection::Col, true);
 }
 
-void CameraModel::splitSlot(int rowIndex, int tileCount) {
-  _splitSlotAtIndex(rowIndex, tileCount, false);
+void CameraModel::splitSlot(int rowIndex, int tileCount, int direction) {
+  SplitDirection dir = SplitDirection::Col; // Default
+  if (direction == 1)
+    dir = SplitDirection::Row;
+  if (direction == 2)
+    dir = SplitDirection::Grid;
+  _splitSlotAtIndex(rowIndex, tileCount, dir, false);
 }
 
 void CameraModel::mergeSlots(int anyTileRowIndex, int) {
@@ -285,6 +325,8 @@ void CameraModel::clearAll() {
   endResetModel();
   _emitSlotsUpdated();
 }
+
+int CameraModel::rowForSlot(int slotId) const { return _indexBySlotId(slotId); }
 
 bool CameraModel::hasSlot(int slotId) const {
   return _indexBySlotId(slotId) >= 0;

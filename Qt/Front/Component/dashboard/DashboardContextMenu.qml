@@ -3,7 +3,7 @@ import AnoMap.front
 
 Rectangle {
     id: root
-    width: 190
+    width: 210
     radius: 7
     color: "#1e1e2e"
     border.color: "#55aaaaff"
@@ -20,7 +20,7 @@ Rectangle {
     signal aiControlRequested(string url)
     signal viewInDeviceTabRequested(string url)
     signal viewInAiTabRequested(string url)
-    signal splitRequested(int index, int n)
+    signal splitRequested(int index, int n, int direction)
     signal mergeRequested(int index, int currentSplit)
 
     Column {
@@ -65,25 +65,91 @@ Rectangle {
             color: "#33ffffff"
             anchors.horizontalCenter: parent.horizontalCenter
         }
-        CtxItem {
-            label: "Split 2"
-            itemEnabled: root.targetSplit === 1 && root.targetOnline
-            onTriggered: root.splitRequested(root.targetIndex, 2)
+        // -- Column Split --
+        CtxSectionLabel {
+            label: "Column"
         }
         CtxItem {
-            label: "Split 3"
+            label: "Col-2"
             itemEnabled: root.targetSplit === 1 && root.targetOnline
-            onTriggered: root.splitRequested(root.targetIndex, 3)
+            onTriggered: root.splitRequested(root.targetIndex, 2, 0)
         }
         CtxItem {
-            label: "Split 4"
+            label: "Col-3"
             itemEnabled: root.targetSplit === 1 && root.targetOnline
-            onTriggered: root.splitRequested(root.targetIndex, 4)
+            onTriggered: root.splitRequested(root.targetIndex, 3, 0)
         }
+        CtxItem {
+            label: "Col-4"
+            itemEnabled: root.targetSplit === 1 && root.targetOnline
+            onTriggered: root.splitRequested(root.targetIndex, 4, 0)
+        }
+        Rectangle {
+            width: parent.width - 12
+            height: 1
+            color: "#33ffffff"
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+        // -- Row Split --
+        CtxSectionLabel {
+            label: "Row"
+        }
+        CtxItem {
+            label: "Row-2"
+            itemEnabled: root.targetSplit === 1 && root.targetOnline
+            onTriggered: root.splitRequested(root.targetIndex, 2, 1)
+        }
+        CtxItem {
+            label: "Row-3"
+            itemEnabled: root.targetSplit === 1 && root.targetOnline
+            onTriggered: root.splitRequested(root.targetIndex, 3, 1)
+        }
+        Rectangle {
+            width: parent.width - 12
+            height: 1
+            color: "#33ffffff"
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+        // -- Grid Split --
+        CtxSectionLabel {
+            label: "Grid"
+        }
+        CtxItem {
+            label: "Grid-4 (2x2)"
+            itemEnabled: root.targetSplit === 1 && root.targetOnline
+            onTriggered: root.splitRequested(root.targetIndex, 4, 2)
+        }
+        Rectangle {
+            width: parent.width - 12
+            height: 1
+            color: "#33ffffff"
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+        // -- Merge --
         CtxItem {
             label: "Merge"
             itemEnabled: root.targetSplit > 1
             onTriggered: root.mergeRequested(root.targetIndex, root.targetSplit)
+        }
+    }
+
+    component CtxSectionLabel: Rectangle {
+        property string label: ""
+        width: parent.width
+        height: 20
+        color: "transparent"
+        Text {
+            anchors {
+                left: parent.left
+                leftMargin: 12
+                verticalCenter: parent.verticalCenter
+            }
+            text: parent.label
+            color: "#7799bb"
+            font.pixelSize: 10
+            font.bold: true
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 1
         }
     }
 

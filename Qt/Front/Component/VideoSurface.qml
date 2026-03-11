@@ -36,7 +36,8 @@ VideoSurfaceItem {
     }
 
     function _onRegistered(url) {
-        if (root.slotId >= 0 || root.rtspUrl === url) {
+        const isTargetUrl = (root.slotId >= 0) ? (videoManager.slotUrl(root.slotId) === url) : (root.rtspUrl === url);
+        if (isTargetUrl) {
             try {
                 videoManager.workerRegistered.disconnect(_onRegistered);
             } catch (e) {}
@@ -52,13 +53,14 @@ VideoSurfaceItem {
     }
 
     onRtspUrlChanged: {
-        if (root.slotId < 0) {
-            try {
-                videoManager.workerRegistered.disconnect(_onRegistered);
-            } catch (e) {}
-            _tryAttach();
-        }
+        try {
+            videoManager.workerRegistered.disconnect(_onRegistered);
+        } catch (e) {}
+        _tryAttach();
     }
+
+    // QTimer(33ms) 가 VideoSurfaceItem 내부에서 update() 를 구동함
+    // 외부 시그널 연결 불필요
 
     Component.onCompleted: _tryAttach()
 

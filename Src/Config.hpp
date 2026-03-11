@@ -25,7 +25,7 @@ namespace Config {
     constexpr std::size_t THREAD_POOL_SIZE    = 4;
 
     // ── Video ────────────────────────────────────────────────
-    constexpr int  VIDEO_FPS_LIMIT_MS         = 41;   // ~24 fps
+    //constexpr int  VIDEO_FPS_LIMIT_MS         = 41;   // ~24 fps
     constexpr int  VIDEO_BUFFER_POOL_SIZE_HD  = 8;
     constexpr int  VIDEO_BUFFER_POOL_SIZE_4K  = 3;
     constexpr int  SPLIT_AUTO_THRESHOLD_WIDTH = 2560;

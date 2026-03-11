@@ -44,14 +44,12 @@ private:
   struct SwsContext *m_swsCtx = nullptr;
   int m_videoStreamIndex = -1;
 
-  // 디코딩 스레드
+  // Decode thread
   std::thread m_decodeThread;
   std::atomic<bool> m_stopThread{false};
 
   // 버퍼 풀 (더블 버퍼 대신 여러 개의 버퍼를 풀링하여 재사용)
   std::vector<std::shared_ptr<std::vector<uint8_t>>> m_bufferPool;
-
-  std::chrono::steady_clock::time_point m_lastUpdateTime;
 
   void decodeLoopFFmpeg(const std::string &url);
   bool tryOnceFFmpeg(const std::string &url);

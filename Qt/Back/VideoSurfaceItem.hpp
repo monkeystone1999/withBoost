@@ -1,23 +1,20 @@
 #pragma once
 
-#include "VideoWorker.hpp"
+#include "VideoFrameTexture.hpp"
+#include "VideoStream.hpp"
 #include <QPointer>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QRectF>
 #include <QSGImageNode>
-#include <QSGTexture>
-#include <atomic>
-#include <memory>
-#include <vector>
 
-// ── §2 VIDEO_STREAMING_SPEC: QSG Streaming Optimisation ──────────────────────
-// Changes vs previous version:
-//   - m_cropRect: normalised UV crop [0..1].  Default = full frame (0,0,1,1).
-//   - m_cachedTex / m_cachedW / m_cachedH: render-thread texture reuse.
-//     A new QSGTexture is only allocated when frame dimensions change (rare).
-//     The same texture object is reused every frame → eliminates 312 GPU
-//     allocations/sec that were caused by createTextureFromImage every frame.
-//   - Q_PROPERTY cropRect: QML can bind tile UV coordinates.
+// ── VIDEO_STREAMING_SPEC: QSGDynamicTexture + beforeSynchronizing ────────────
+//
+// 이전 QTimer 방식 제거. 새로운 방식:
+// Render Thread 의 beforeSynchronizing 단계에서 VideoWorker 로부터
+// 최신 프레임을 lock-free 로 읽어들이고, m_frameTex 의 pending 버퍼만 교체한다.
+// 실제 GPU 업로드는 GUI 블로킹 구간이 끝난 뒤 commitTextureOperations 에서
+// QRhi 직접 제어를 통해 수행되어 GUI Thread Sync 지연을 완전히 소거한다.
 // ─────────────────────────────────────────────────────────────────────────────
 class VideoSurfaceItem : public QQuickItem {
   Q_OBJECT
@@ -41,21 +38,21 @@ signals:
 
 protected:
   QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *) override;
+  void itemChange(ItemChange change, const ItemChangeData &data) override;
 
 private slots:
-  void onFrameReady();
+  // Qt::DirectConnection — Render Thread에서 실행
+  void onBeforeSynchronizing();
 
 private:
   QPointer<VideoWorker> m_worker;
+  QPointer<QQuickWindow> m_window;
 
   // ── GUI-thread state ──────────────────────────────────────────────────────
-  QRectF m_cropRect{0, 0, 1, 1}; // set by QML
+  QRectF m_cropRect{0, 0, 1, 1};
 
   // ── Render-thread private — never touch from GUI thread ───────────────────
-  QSGTexture *m_cachedTex{nullptr};
-
-  int m_cachedW{0};
-  int m_cachedH{0};
-  std::shared_ptr<std::vector<uint8_t>> m_renderBufferHold;
-  std::atomic<bool> m_updatePending{false};
+  VideoFrameTexture *m_frameTex{nullptr};
+  uint64_t m_lastSeq{UINT64_MAX};
+  bool m_nodeReady{false};
 };

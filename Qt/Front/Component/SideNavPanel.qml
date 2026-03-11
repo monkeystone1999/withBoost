@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
+import Qt5Compat.GraphicalEffects
 import AnoMap.front
 
 // 좌측 슬라이드 사이드 네비게이션 패널
@@ -83,12 +84,14 @@ Item {
                 spacing: 10
 
                 Image {
+                    readonly property int logoH: 30
+                    readonly property int logoW: logoH * (85 / 77)
                     anchors.verticalCenter: parent.verticalCenter
                     source: Icon.logo
-                    height: 30
-                    width: height * (85 / 77)
-                    sourceSize.width: width
-                    sourceSize.height: height
+                    height: logoH
+                    width: logoW
+                    sourceSize.width: logoW
+                    sourceSize.height: logoH
                     fillMode: Image.PreserveAspectFit
                 }
 
@@ -250,14 +253,12 @@ Item {
                                 source: Icon.option
                                 sourceSize.width: 20
                                 sourceSize.height: 20
-                                visible: true
-                                layer.enabled: true
+                                visible: false
                             }
-                            MultiEffect {
+                            ColorOverlay {
                                 anchors.fill: optIcon
                                 source: optIcon
-                                colorization: 1.0
-                                colorizationColor: Theme.fontColor
+                                color: Theme.fontColor
                             }
                         }
 

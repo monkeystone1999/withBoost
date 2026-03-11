@@ -1,4 +1,4 @@
-#include "DeviceModel.hpp"
+#include "Device.hpp"
 #include <QDebug>
 #include <QUrl>
 

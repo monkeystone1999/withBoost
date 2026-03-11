@@ -44,7 +44,10 @@ Window {
         function onRowsRemoved() {
             root.updateTrigger++;
         }
-        function onDataChanged() {
+        function onDataChanged(topLeft, bottomRight) {
+            var slotRow = cameraModel.rowForSlot(root.sourceSlotId);
+            if (slotRow < topLeft.row || slotRow > bottomRight.row)
+                return;
             root.updateTrigger++;
         }
     }

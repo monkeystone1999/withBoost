@@ -10,6 +10,7 @@ set_source_files_properties(
         QT_QML_SINGLETON_TYPE TRUE
 )
 
+
 qt_add_qml_module(FrontEnd
     URI AnoMap.front
     QML_FILES
@@ -22,6 +23,8 @@ qt_add_qml_module(FrontEnd
         Component/dashboard/GridColumnSelector.qml
         Component/dashboard/AdminStatusBar.qml
         Component/dashboard/DashboardContextMenu.qml
+        Component/camera/AiContextMenu.qml
+        Component/camera/DeviceContextMenu.qml
         Component/InputText.qml
         Component/SystemButton.qml
         Component/SideNavPanel.qml
@@ -30,11 +33,14 @@ qt_add_qml_module(FrontEnd
         Component/VideoSurface.qml
         Component/device/DeviceControlBar.qml
         Component/device/DeviceBadge.qml
+        Component/user/UserCard.qml
         Theme/Icon.qml
         Theme/Theme.qml
         Theme/Typography.qml
         Layout/DashboardLayout.qml
         Layout/DeviceListLayout.qml
+        Layout/UserListLayout.qml
+        Layout/CameraSplitLayout.qml
         View/DashboardPage.qml
         View/AIPage.qml
         View/DevicePage.qml
@@ -42,6 +48,7 @@ qt_add_qml_module(FrontEnd
         View/LoginPage.qml
         View/SettingsPage.qml
         View/SignupPage.qml
+
     RESOURCES
         Assets/Core/Icons/Alarm.svg
         Assets/Core/Icons/Exit.svg

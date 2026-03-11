@@ -1,5 +1,5 @@
 #pragma once
-#include "../../Src/Domain/ServerStatusData.hpp"
+#include "../../Src/Domain/ServerStatus.hpp"
 #include <QList>
 #include <QObject>
 #include <QString>

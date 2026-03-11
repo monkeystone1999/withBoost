@@ -1,4 +1,4 @@
-#include "ServerStatusModel.hpp"
+#include "ServerStatus.hpp"
 #include <QDebug>
 
 ServerStatusModel::ServerStatusModel(QObject *parent) : QObject(parent) {}

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../../Src/Domain/AlarmDispatcher.hpp"
-#include "../../Src/Domain/AlarmEvent.hpp"
+#include "../../Src/Domain/Alarm.hpp"
 #include <QObject>
 #include <QString>
 

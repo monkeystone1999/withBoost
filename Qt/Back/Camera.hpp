@@ -1,5 +1,5 @@
 #pragma once
-#include "../../Src/Domain/CameraData.hpp"
+#include "../../Src/Domain/Camera.hpp"
 #include <QAbstractListModel>
 #include <QList>
 #include <QMetaType>
@@ -29,7 +29,8 @@ struct CameraEntry {
   QString rtspUrl;
   bool isOnline = false;
   QString cameraType;
-  int splitCount = 1;             // 1 = no split
+  int splitCount = 1; // 1 = no split
+  SplitDirection splitDirection = SplitDirection::None;
   QRectF cropRect = {0, 0, 1, 1}; // default: full frame
   int splitGroupId = -1;          // -1 when not split
   int splitIndex = 0;             // tile index within split group
@@ -51,7 +52,8 @@ public:
     CardHeightRole,
     CameraTypeRole,
     SplitCountRole,
-    CropRectRole
+    CropRectRole,
+    SplitDirectionRole
   };
 
   explicit CameraModel(QObject *parent = nullptr);
@@ -65,12 +67,13 @@ public:
 
   Q_INVOKABLE void swapSlots(int indexA, int indexB); // full entry swap
   Q_INVOKABLE void setOnline(int index, bool online);
-  Q_INVOKABLE void splitSlot(int rowIndex, int tileCount);
+  Q_INVOKABLE void splitSlot(int rowIndex, int tileCount, int direction = 0);
   Q_INVOKABLE void mergeSlots(int anyTileRowIndex, int tileCount);
   Q_INVOKABLE bool isSlotSplit(int slotId) const;
   Q_INVOKABLE bool applyAutoSplitForSlot(int slotId);
   Q_INVOKABLE void clearAll();
 
+  Q_INVOKABLE int rowForSlot(int slotId) const;
   Q_INVOKABLE bool hasSlot(int slotId) const;
   Q_INVOKABLE QString titleForSlot(int slotId) const;
   Q_INVOKABLE QString rtspUrlForSlot(int slotId) const;
@@ -91,15 +94,17 @@ signals:
   void slotsUpdated(QList<SlotInfo> slots);
   // Legacy URL-only signal (VideoManager::registerUrls)
   void urlsUpdated(QStringList urls);
-  // Fired when an existing camera comes back online (offline → online transition)
+  // Fired when an existing camera comes back online (offline → online
+  // transition)
   void cameraOnline(const QString &rtspUrl);
 
 private:
-  static QRectF computeCropRect(int tileIndex, int tileCount);
+  static QRectF computeCropRect(int tileIndex, int tileCount,
+                                SplitDirection direction);
   void _emitSlotsUpdated();
   int _indexBySlotId(int slotId) const;
-  bool _isValidTileCount(int tileCount) const;
-  bool _splitSlotAtIndex(int rowIndex, int tileCount, bool autoSplit);
+  bool _splitSlotAtIndex(int rowIndex, int tileCount, SplitDirection direction,
+                         bool autoSplit);
   bool _mergeGroupByIndex(int anyTileRowIndex);
   bool _autoSplitForIndex(int rowIndex);
 

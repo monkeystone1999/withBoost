@@ -24,12 +24,14 @@ Item {
             spacing: 6
             Image {
                 id: logoImage
+                readonly property int logoH: 36
+                readonly property int logoW: logoH * (85 / 77)
                 anchors.verticalCenter: parent.verticalCenter
                 source: Icon.logo
-                height: 36
-                width: height * (85 / 77)   // SVG viewBox: 85x77 비율 유지
-                sourceSize.width: width
-                sourceSize.height: height
+                height: logoH
+                width: logoW
+                sourceSize.width: logoW
+                sourceSize.height: logoH
                 fillMode: Image.PreserveAspectFit
             }
             // 햄버거 ≡ 메뉴 버튼
@@ -37,14 +39,14 @@ Item {
                 id: menuButton
                 width: 46
                 height: 48
-                color: menuHover.containsMouse
-                       ? Theme.bgThird
-                       : Theme.bgPrimary
+                color: menuHover.containsMouse ? Theme.bgThird : Theme.bgPrimary
                 radius: 4
                 anchors.verticalCenter: parent.verticalCenter
 
                 Behavior on color {
-                    ColorAnimation { duration: 200 }
+                    ColorAnimation {
+                        duration: 200
+                    }
                 }
 
                 Text {
@@ -52,7 +54,11 @@ Item {
                     text: "≡"
                     font.pixelSize: 24
                     color: menuHover.containsMouse ? Theme.iconChange : Theme.iconColor
-                    Behavior on color { ColorAnimation { duration: 200 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: 200
+                        }
+                    }
                 }
 
                 MouseArea {
@@ -63,7 +69,7 @@ Item {
                     onClicked: menuButton.clicked()
                 }
 
-                signal clicked()
+                signal clicked
             }
         }
         Text {

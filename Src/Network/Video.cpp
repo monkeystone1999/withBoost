@@ -26,7 +26,6 @@ void Video::startStream(const std::string &url) {
   stopStream();
 
   m_stopThread = false;
-  m_lastUpdateTime = std::chrono::steady_clock::now();
   m_decodeThread = std::thread([this, url]() { decodeLoopFFmpeg(url); });
 }
 
@@ -39,7 +38,7 @@ void Video::stopStream() {
 }
 
 void Video::decodeLoopFFmpeg(const std::string &url) {
-  // 외부 재시도 루프: tryOnceFFmpeg() 가 false 를 반환하면 3초 대기 후 재시도
+  // Retry loop
   while (!m_stopThread) {
     bool ok = tryOnceFFmpeg(url);
     if (m_stopThread)
@@ -126,13 +125,9 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
       m_codecCtx, m_formatCtx->streams[m_videoStreamIndex]->codecpar);
 
   if (m_codecCtx->width <= 0 || m_codecCtx->height <= 0) {
-    fprintf(stderr, "[Video] 해상도 미정 — 디코더 강제 초기화\n");
-    m_codecCtx->width = 1280;
-    m_codecCtx->height = 720;
-    m_codecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
-    m_codecCtx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
+    fprintf(stderr, "[Video] Resolution unknown - decoding as is\n");
   }
-  m_codecCtx->thread_count = 2;
+  m_codecCtx->thread_count = 0;
   m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
   m_codecCtx->skip_loop_filter = AVDISCARD_ALL;
   m_codecCtx->skip_frame = AVDISCARD_DEFAULT;
@@ -163,77 +158,81 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
             if (recv != 0)
               break;
 
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - m_lastUpdateTime)
-                    .count();
+            // ──────────────────────────────────────────────────────────────
+            // FPS 제한 제거 (실시간 스트리밍 최적화)
+            //
+            // 이전: Config::VIDEO_FPS_LIMIT_MS (41ms) 마다 프레임 처리
+            // 현재: 모든 프레임을 즉시 처리하여 VideoWorker로 전달
+            //
+            // 이유:
+            // 1. VideoSurfaceItem의 beforeSynchronizing이 렌더링 주기
+            //    (~16.67ms for 60Hz)에 맞춰 자동으로 throttling
+            // 2. VideoWorker의 atomic 덮어쓰기로 중간 프레임 자동 스킵
+            // 3. GUI Thread Sync 시간 영향 없음 (atomic read는 ~수십ns)
+            // 4. FFmpeg 디코딩 지연 최소화로 실시간성 향상
+            // ──────────────────────────────────────────────────────────────
 
-            if (elapsed >= Config::VIDEO_FPS_LIMIT_MS) {
-              m_lastUpdateTime = now;
+            int srcWidth = frame->width;
+            int srcHeight = frame->height;
+            if (srcWidth <= 0 || srcHeight <= 0)
+              continue;
 
-              int srcWidth = frame->width;
-              int srcHeight = frame->height;
-              if (srcWidth <= 0 || srcHeight <= 0)
-                continue;
+            int targetWidth = srcWidth;
+            int targetHeight = srcHeight;
 
-              int targetWidth = srcWidth;
-              int targetHeight = srcHeight;
+            if (!m_swsCtx || width != srcWidth || height != srcHeight ||
+                prevTargetWidth != targetWidth ||
+                prevTargetHeight != targetHeight) {
+              width = srcWidth;
+              height = srcHeight;
+              prevTargetWidth = targetWidth;
+              prevTargetHeight = targetHeight;
 
-              if (!m_swsCtx || width != srcWidth || height != srcHeight ||
-                  prevTargetWidth != targetWidth ||
-                  prevTargetHeight != targetHeight) {
-                width = srcWidth;
-                height = srcHeight;
-                prevTargetWidth = targetWidth;
-                prevTargetHeight = targetHeight;
+              if (m_swsCtx)
+                sws_freeContext(m_swsCtx);
 
-                if (m_swsCtx)
-                  sws_freeContext(m_swsCtx);
+              int numBytes = av_image_get_buffer_size(
+                  AV_PIX_FMT_RGBA, targetWidth, targetHeight, 4);
 
-                int numBytes = av_image_get_buffer_size(
-                    AV_PIX_FMT_RGBA, targetWidth, targetHeight, 4);
+              const int poolSize = (targetWidth > 1920)
+                                       ? Config::VIDEO_BUFFER_POOL_SIZE_4K
+                                       : Config::VIDEO_BUFFER_POOL_SIZE_HD;
 
-                const int poolSize = (targetWidth > 1920)
-                                         ? Config::VIDEO_BUFFER_POOL_SIZE_4K
-                                         : Config::VIDEO_BUFFER_POOL_SIZE_HD;
-
-                m_bufferPool.clear();
-                for (int i = 0; i < poolSize; ++i) {
-                  auto buf = std::make_shared<std::vector<uint8_t>>(
-                      numBytes + AV_INPUT_BUFFER_PADDING_SIZE);
-                  m_bufferPool.push_back(buf);
-                }
-
-                m_swsCtx =
-                    sws_getContext(srcWidth, srcHeight,
-                                   static_cast<AVPixelFormat>(frame->format),
-                                   targetWidth, targetHeight, AV_PIX_FMT_RGBA,
-                                   SWS_BILINEAR, nullptr, nullptr, nullptr);
+              m_bufferPool.clear();
+              for (int i = 0; i < poolSize; ++i) {
+                auto buf = std::make_shared<std::vector<uint8_t>>(
+                    numBytes + AV_INPUT_BUFFER_PADDING_SIZE);
+                m_bufferPool.push_back(buf);
               }
 
-              std::shared_ptr<std::vector<uint8_t>> targetBuffer = nullptr;
-              for (auto &buf : m_bufferPool) {
-                if (buf.use_count() == 1) {
-                  targetBuffer = buf;
-                  break;
-                }
+              m_swsCtx =
+                  sws_getContext(srcWidth, srcHeight,
+                                 static_cast<AVPixelFormat>(frame->format),
+                                 targetWidth, targetHeight, AV_PIX_FMT_RGBA,
+                                 SWS_BILINEAR, nullptr, nullptr, nullptr);
+            }
+
+            std::shared_ptr<std::vector<uint8_t>> targetBuffer = nullptr;
+            for (auto &buf : m_bufferPool) {
+              if (buf.use_count() == 1) {
+                targetBuffer = buf;
+                break;
               }
-              if (!targetBuffer)
-                continue;
+            }
+            if (!targetBuffer)
+              continue;
 
-              av_image_fill_arrays(frameRGB->data, frameRGB->linesize,
-                                   targetBuffer->data(), AV_PIX_FMT_RGBA,
-                                   targetWidth, targetHeight, 4);
+            av_image_fill_arrays(frameRGB->data, frameRGB->linesize,
+                                 targetBuffer->data(), AV_PIX_FMT_RGBA,
+                                 targetWidth, targetHeight, 4);
 
-              sws_scale(m_swsCtx, (const uint8_t *const *)frame->data,
-                        frame->linesize, 0, srcHeight, frameRGB->data,
-                        frameRGB->linesize);
+            sws_scale(m_swsCtx, (const uint8_t *const *)frame->data,
+                      frame->linesize, 0, srcHeight, frameRGB->data,
+                      frameRGB->linesize);
 
-              if (onFrameReady) {
-                onFrameReady(targetBuffer, targetWidth, targetHeight,
-                             frameRGB->linesize[0]);
-              }
+            if (onFrameReady) {
+              onFrameReady(targetBuffer, targetWidth, targetHeight,
+                           frameRGB->linesize[0]);
             }
           }
         }

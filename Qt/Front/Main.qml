@@ -136,12 +136,14 @@ Window {
             switch (pageName) {
             case "Home":
             case "Dashboard":
-            case "AdminDashboard":
                 if (stackView.depth > 1) {
                     stackView.pop(null);
                 } else {
                     stackView.replace(null, "View/DashboardPage.qml");
                 }
+                break;
+            case "AdminDashboard":
+                stackView.replace(null, "View/AdminPage.qml");
                 break;
             case "AI":
                 stackView.replace(null, "View/AIPage.qml");
@@ -272,12 +274,14 @@ Window {
                 break;
             case "Dashboard":
             case "Home":
-            case "AdminDashboard":
                 if (stackView.depth > 1) {
                     stackView.pop(null);
                 } else {
                     stackView.replace(null, "View/DashboardPage.qml");
                 }
+                break;
+            case "AdminDashboard":
+                stackView.replace(null, "View/AdminPage.qml");
                 break;
             case "AI":
                 stackView.replace(null, "View/AIPage.qml");
@@ -450,7 +454,7 @@ Window {
                 OptRow {
                     label: "🌐  Server"
                     content: Text {
-                        text: typeof networkBridge !== "undefined" ? networkBridge.serverAddress : "--"
+                        text: (typeof networkBridge !== "undefined" && networkBridge.serverAddress) ? networkBridge.serverAddress : "--"
                         font.pixelSize: 13
                         color: Theme.isDark ? "#888" : "#666"
                     }
