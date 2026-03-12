@@ -19,10 +19,10 @@ class AlarmDispatcher {
 public:
   using Callback = std::function<void(AlarmEvent)>;
 
-  explicit AlarmDispatcher(ThreadPool &pool) : m_pool(pool) {}
+  explicit AlarmDispatcher(ThreadPool &pool) : pool_(pool) {}
 
   void dispatch(const std::string &json, Callback cb);
 
 private:
-  ThreadPool &m_pool;
+  ThreadPool &pool_;
 };

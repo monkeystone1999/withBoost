@@ -60,7 +60,7 @@ Item {
                 slotId: model.slotId
                 cropRect: model.cropRect
 
-                showActionIcon: typeof deviceModel !== "undefined" && deviceModel.hasDevice(model.rtspUrl)
+                showActionIcon: typeof deviceModel !== "undefined" && deviceModel.hasDeviceByUrl(model.rtspUrl)
                 highlightOnHover: root.activeCtrlUrl === model.rtspUrl
                 opacity: root.dragSourceIndex === delegateRoot.modelIndex ? 0.3 : 1.0
 
@@ -71,7 +71,7 @@ Item {
                 }
 
                 function toggleControlBar() {
-                    if (typeof deviceModel !== "undefined" && !deviceModel.hasDevice(model.rtspUrl))
+                    if (typeof deviceModel !== "undefined" && !deviceModel.hasDeviceByUrl(model.rtspUrl))
                         return;
 
                     if (root.activeCtrlUrl === model.rtspUrl) {

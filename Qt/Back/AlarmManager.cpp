@@ -2,7 +2,7 @@
 #include <QDebug>
 
 AlarmManager::AlarmManager(AlarmDispatcher *dispatcher, QObject *parent)
-    : QObject(parent), m_dispatcher(dispatcher) {}
+    : QObject(parent), dispatcher_(dispatcher) {}
 
 AlarmManager::~AlarmManager() {}
 

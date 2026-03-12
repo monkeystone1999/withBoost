@@ -7,29 +7,39 @@
 #include <QString>
 #include <vector>
 
-// rtspUrl 하나에 연결된 실제 기기의 제어 능력
-struct DeviceCapability {
-  bool motor = true; // 방향 4키 — 기본 제공
-  bool ir = false;
-  bool heater = false;
-};
-
+// ── DeviceEntry (Qt용 변환) ──────────────────────────────────────────────────
 struct DeviceEntry {
+  QString ip;
   QString rtspUrl;
-  QString deviceIp; // 서버가 알려준 제어 대상 IP
-  QString title;
+  QString type;
   bool isOnline = false;
-  DeviceCapability cap;
+
+  double cpu = 0.0;
+  double memory = 0.0;
+  double temp = 0.0;
+  int uptime = 0;
+  qint64 lastUpdate = 0;
+
+  bool hasMotor = true;
+  bool hasIr = false;
+  bool hasHeater = false;
+
+  // History (최대 20개)
+  QList<DeviceSnapshot> history;
 };
 
 class DeviceModel : public QAbstractListModel {
   Q_OBJECT
 public:
   enum Roles {
-    RtspUrlRole = Qt::UserRole + 1,
-    DeviceIpRole,
-    TitleRole,
+    IpRole = Qt::UserRole + 1,
+    RtspUrlRole,
+    TypeRole,
     IsOnlineRole,
+    CpuRole,
+    MemoryRole,
+    TempRole,
+    UptimeRole,
     HasMotorRole,
     HasIrRole,
     HasHeaterRole
@@ -42,20 +52,31 @@ public:
                 int role = Qt::DisplayRole) const override;
   QHash<int, QByteArray> roleNames() const override;
 
-  // QML / CameraCard 에서 rtspUrl 로 기능 조회
-  Q_INVOKABLE bool hasDevice(const QString &rtspUrl) const;
+  // QML 조회
+  Q_INVOKABLE bool hasDevice(const QString &ip) const;
+  Q_INVOKABLE QString rtspUrl(const QString &ip) const;
+  Q_INVOKABLE double cpu(const QString &ip) const;
+  Q_INVOKABLE double memory(const QString &ip) const;
+  Q_INVOKABLE double temp(const QString &ip) const;
+
+  // History lookup (max 20 entries)
+  Q_INVOKABLE QVariantList getHistory(const QString &ip) const;
+
+  // rtspUrl-based lookup (for QML calls with RTSP URLs)
+  Q_INVOKABLE QString deviceIp(const QString &rtspUrl) const;
   Q_INVOKABLE bool hasMotor(const QString &rtspUrl) const;
   Q_INVOKABLE bool hasIr(const QString &rtspUrl) const;
   Q_INVOKABLE bool hasHeater(const QString &rtspUrl) const;
-  Q_INVOKABLE QString deviceIp(const QString &rtspUrl) const;
+  Q_INVOKABLE bool hasDeviceByUrl(const QString &rtspUrl) const;
 
 public slots:
-  // Called by Core (GUI thread) with pre-parsed snapshot — no JSON
-  void onStoreUpdated(std::vector<DeviceData> snapshot);
+  // Called by Core (GUI thread) with pre-parsed snapshot
+  void onStoreUpdated(std::vector<DeviceIntegrated> snapshot);
 
 private:
+  int findIndexByIp(const QString &ip) const;
   int findIndexByRtspUrl(const QString &rtspUrl) const;
 
-  QList<DeviceEntry> m_devices;
-  QHash<QString, int> m_byUrl; // rtspUrl -> row index (빠른 조회)
+  QList<DeviceEntry> devices_;
+  QHash<QString, int> byIp_; // IP -> row index
 };

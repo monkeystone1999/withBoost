@@ -24,6 +24,7 @@ qt_add_qml_module(FrontEnd
         Component/dashboard/AdminStatusBar.qml
         Component/dashboard/DashboardContextMenu.qml
         Component/camera/AiContextMenu.qml
+        Component/camera/AiControlBar.qml
         Component/camera/DeviceContextMenu.qml
         Component/InputText.qml
         Component/SystemButton.qml
@@ -33,6 +34,7 @@ qt_add_qml_module(FrontEnd
         Component/VideoSurface.qml
         Component/device/DeviceControlBar.qml
         Component/device/DeviceBadge.qml
+        Component/device/DeviceControlPanel.qml
         Component/user/UserCard.qml
         Theme/Icon.qml
         Theme/Theme.qml
@@ -48,6 +50,7 @@ qt_add_qml_module(FrontEnd
         View/LoginPage.qml
         View/SettingsPage.qml
         View/SignupPage.qml
+        View/AdminPage.qml
 
     RESOURCES
         Assets/Core/Icons/Alarm.svg

@@ -57,22 +57,22 @@ private:
   void registerContextProperties(QQmlEngine &engine);
 
   // ── Layer 1 — owned here (destroyed in ~Core) ────────────────────────
-  std::unique_ptr<ThreadPool> m_threadPool;
-  std::unique_ptr<NetworkService> m_networkService;
-  std::unique_ptr<CameraStore> m_cameraStore;
-  std::unique_ptr<DeviceStore> m_deviceStore;
-  std::unique_ptr<ServerStatusStore> m_serverStatusStore;
-  std::unique_ptr<AlarmDispatcher> m_alarmDispatcher;
+  std::unique_ptr<ThreadPool> threadPool_;
+  std::unique_ptr<NetworkService> networkService_;
+  std::unique_ptr<CameraStore> cameraStore_;
+  std::unique_ptr<DeviceStore> deviceStore_;
+  std::unique_ptr<ServerStatusStore> serverStatusStore_;
+  std::unique_ptr<AlarmDispatcher> alarmDispatcher_;
 
   // ── Layer 2 — parented to QQmlEngine, not owned by Core ─────────────
   // Raw pointers only — QQmlEngine destructor handles deletion.
-  NetworkBridge *m_networkBridge = nullptr;
-  LoginController *m_login = nullptr;
-  SignupController *m_signup = nullptr;
-  CameraModel *m_cameraModel = nullptr;
-  DeviceModel *m_deviceModel = nullptr;
-  ServerStatusModel *m_serverStatus = nullptr;
-  UserModel *m_userModel = nullptr;
-  VideoManager *m_videoManager = nullptr;
-  AlarmManager *m_alarmManager = nullptr;
+  NetworkBridge *networkBridge_ = nullptr;
+  LoginController *login_ = nullptr;
+  SignupController *signup_ = nullptr;
+  CameraModel *cameraModel_ = nullptr;
+  DeviceModel *deviceModel_ = nullptr;
+  ServerStatusModel *serverStatus_ = nullptr;
+  UserModel *userModel_ = nullptr;
+  VideoManager *videoManager_ = nullptr;
+  AlarmManager *alarmManager_ = nullptr;
 };

@@ -3,25 +3,25 @@
 
 AuthController::AuthController(NetworkBridge *bridge, const QString &host,
                                const QString &port, QObject *parent)
-    : QObject(parent), m_bridge(bridge), m_host(host), m_port(port) {}
+    : QObject(parent), bridge_(bridge), host_(host), port_(port) {}
 
 void AuthController::setLoading(bool v) {
-  if (m_isLoading == v)
+  if (isLoading_ == v)
     return;
-  m_isLoading = v;
+  isLoading_ = v;
   emit isLoadingChanged();
 }
 
 void AuthController::setError(const QString &msg) {
-  m_isError = true;
-  m_errorMessage = msg;
+  isError_ = true;
+  errorMessage_ = msg;
   emit isErrorChanged();
   emit errorMessageChanged();
 }
 
 void AuthController::clearError() {
-  m_isError = false;
-  m_errorMessage.clear();
+  isError_ = false;
+  errorMessage_.clear();
   emit isErrorChanged();
   emit errorMessageChanged();
 }
@@ -31,12 +31,12 @@ void AuthController::clearError() {
 LoginController::LoginController(NetworkBridge *bridge, const QString &host,
                                  const QString &port, QObject *parent)
     : AuthController(bridge, host, port, parent) {
-  if (m_bridge) {
-    connect(m_bridge, &NetworkBridge::loginSuccess, this,
+  if (bridge_) {
+    connect(bridge_, &NetworkBridge::loginSuccess, this,
             &LoginController::handleLoginSuccess);
-    connect(m_bridge, &NetworkBridge::loginFailed, this,
+    connect(bridge_, &NetworkBridge::loginFailed, this,
             &LoginController::handleLoginFailed);
-    connect(m_bridge, &NetworkBridge::connectedForLogin, this,
+    connect(bridge_, &NetworkBridge::connectedForLogin, this,
             &LoginController::onConnected);
   }
 }
@@ -49,29 +49,29 @@ void LoginController::login(const QString &id, const QString &password) {
   clearError();
   setLoading(true);
 
-  m_pendingId = id;
-  m_pendingPassword = password;
+  pendingId_ = id;
+  pendingPassword_ = password;
 
-  if (m_bridge) {
-    if (m_bridge->isConnected()) {
+  if (bridge_) {
+    if (bridge_->isConnected()) {
       qDebug() << "[Login] Session already connected — sending login directly";
       onConnected();
     } else {
-      qDebug() << "[Login] Connecting to" << m_host << m_port;
-      m_bridge->connectToServer(m_host, m_port, "login");
+      qDebug() << "[Login] Connecting to" << host_ << port_;
+      bridge_->connectToServer(host_, port_, "login");
     }
   } else {
-    qDebug() << "[Login] ERROR: m_bridge is null";
+    qDebug() << "[Login] ERROR: bridge_ is null";
   }
 }
 
 void LoginController::onConnected() {
-  qDebug() << "[Login] onConnected() called, pendingId:" << m_pendingId;
-  if (m_bridge && !m_pendingId.isEmpty()) {
+  qDebug() << "[Login] onConnected() called, pendingId:" << pendingId_;
+  if (bridge_ && !pendingId_.isEmpty()) {
     qDebug() << "[Login] Sending login packet...";
-    m_bridge->sendLogin(m_pendingId, m_pendingPassword);
-    m_pendingId.clear();
-    m_pendingPassword.clear();
+    bridge_->sendLogin(pendingId_, pendingPassword_);
+    pendingId_.clear();
+    pendingPassword_.clear();
   }
 }
 
@@ -79,10 +79,10 @@ void LoginController::handleLoginSuccess(QString state, QString username) {
   qDebug() << "[Login] SUCCESS — state:" << state << "username:" << username;
   setLoading(false);
 
-  m_state = state;
+  state_ = state;
   emit stateChanged();
 
-  m_username = username;
+  username_ = username;
   emit usernameChanged();
 
   emit loginSuccess();
@@ -92,9 +92,9 @@ void LoginController::handleLoginFailed(QString error) {
   qDebug() << "[Login] FAILED —" << error;
   setLoading(false);
 
-  if (m_bridge) {
+  if (bridge_) {
     qDebug() << "[Login] Disconnecting after failure";
-    m_bridge->disconnect();
+    bridge_->disconnect();
   }
 
   setError(error);
@@ -102,18 +102,18 @@ void LoginController::handleLoginFailed(QString error) {
 
 void LoginController::logout() {
   qDebug() << "[Login] Logging out — disconnecting";
-  if (m_bridge) {
-    m_bridge->disconnect();
+  if (bridge_) {
+    bridge_->disconnect();
   }
 
-  m_state.clear();
+  state_.clear();
   emit stateChanged();
 
-  m_username.clear();
+  username_.clear();
   emit usernameChanged();
 
-  m_pendingId.clear();
-  m_pendingPassword.clear();
+  pendingId_.clear();
+  pendingPassword_.clear();
 
   setLoading(false);
   clearError();
@@ -126,12 +126,12 @@ void LoginController::logout() {
 SignupController::SignupController(NetworkBridge *bridge, const QString &host,
                                    const QString &port, QObject *parent)
     : AuthController(bridge, host, port, parent) {
-  if (m_bridge) {
-    connect(m_bridge, &NetworkBridge::signupSuccess, this,
+  if (bridge_) {
+    connect(bridge_, &NetworkBridge::signupSuccess, this,
             &SignupController::handleSignupSuccess);
-    connect(m_bridge, &NetworkBridge::signupFailed, this,
+    connect(bridge_, &NetworkBridge::signupFailed, this,
             &SignupController::handleSignupFailed);
-    connect(m_bridge, &NetworkBridge::connectedForSignup, this,
+    connect(bridge_, &NetworkBridge::connectedForSignup, this,
             &SignupController::onConnected);
   }
 }
@@ -145,29 +145,29 @@ void SignupController::signup(const QString &id, const QString &email,
   clearError();
   setLoading(true);
 
-  m_pendingId = id;
-  m_pendingEmail = email;
-  m_pendingPassword = password;
+  pendingId_ = id;
+  pendingEmail_ = email;
+  pendingPassword_ = password;
 
-  if (m_bridge) {
-    if (m_bridge->isConnected()) {
+  if (bridge_) {
+    if (bridge_->isConnected()) {
       qDebug() << "[Signup] Already connected — sending signup directly";
       onConnected();
     } else {
-      qDebug() << "[Signup] Connecting to" << m_host << m_port;
-      m_bridge->connectToServer(m_host, m_port, "signup");
+      qDebug() << "[Signup] Connecting to" << host_ << port_;
+      bridge_->connectToServer(host_, port_, "signup");
     }
   }
 }
 
 void SignupController::onConnected() {
-  qDebug() << "[Signup] onConnected() called, pendingId:" << m_pendingId;
-  if (m_bridge && !m_pendingId.isEmpty()) {
+  qDebug() << "[Signup] onConnected() called, pendingId:" << pendingId_;
+  if (bridge_ && !pendingId_.isEmpty()) {
     qDebug() << "[Signup] Sending signup packet...";
-    m_bridge->sendSignup(m_pendingId, m_pendingEmail, m_pendingPassword);
-    m_pendingId.clear();
-    m_pendingEmail.clear();
-    m_pendingPassword.clear();
+    bridge_->sendSignup(pendingId_, pendingEmail_, pendingPassword_);
+    pendingId_.clear();
+    pendingEmail_.clear();
+    pendingPassword_.clear();
   }
 }
 

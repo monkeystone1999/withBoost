@@ -1,215 +1,206 @@
 #include "Device.hpp"
-#include <QDebug>
-#include <QUrl>
-
-namespace {
-QString hostFromRtsp(const QString &rtspUrl) {
-  const QUrl url(rtspUrl);
-  if (url.isValid() && !url.host().isEmpty())
-    return url.host();
-
-  // Fallback parser for malformed URLs.
-  const int schemePos = rtspUrl.indexOf("://");
-  if (schemePos < 0)
-    return {};
-  const int hostStart = schemePos + 3;
-  int atPos = rtspUrl.indexOf('@', hostStart);
-  int hostPos = (atPos >= 0) ? atPos + 1 : hostStart;
-  int endPos = rtspUrl.indexOf('/', hostPos);
-  if (endPos < 0)
-    endPos = rtspUrl.size();
-  const QString hostPort = rtspUrl.mid(hostPos, endPos - hostPos);
-  const int colonPos = hostPort.indexOf(':');
-  return colonPos >= 0 ? hostPort.left(colonPos) : hostPort;
-}
-} // namespace
+#include <QDateTime>
 
 DeviceModel::DeviceModel(QObject *parent) : QAbstractListModel(parent) {}
 
 int DeviceModel::rowCount(const QModelIndex &parent) const {
   if (parent.isValid())
     return 0;
-  return m_devices.size();
+  return devices_.size();
 }
 
 QVariant DeviceModel::data(const QModelIndex &index, int role) const {
-  if (!index.isValid() || index.row() >= m_devices.size())
+  if (!index.isValid() || index.row() >= devices_.size())
     return {};
-  const auto &d = m_devices[index.row()];
+
+  const auto &d = devices_[index.row()];
+
   switch (role) {
+  case IpRole:
+    return d.ip;
   case RtspUrlRole:
     return d.rtspUrl;
-  case DeviceIpRole:
-    return d.deviceIp;
-  case TitleRole:
-    return d.title;
+  case TypeRole:
+    return d.type;
   case IsOnlineRole:
     return d.isOnline;
+  case CpuRole:
+    return d.cpu;
+  case MemoryRole:
+    return d.memory;
+  case TempRole:
+    return d.temp;
+  case UptimeRole:
+    return d.uptime;
   case HasMotorRole:
-    return d.cap.motor;
+    return d.hasMotor;
   case HasIrRole:
-    return d.cap.ir;
+    return d.hasIr;
   case HasHeaterRole:
-    return d.cap.heater;
+    return d.hasHeater;
   default:
     return {};
   }
 }
 
 QHash<int, QByteArray> DeviceModel::roleNames() const {
-  return {
-      {RtspUrlRole, "rtspUrl"},     {DeviceIpRole, "deviceIp"},
-      {TitleRole, "title"},         {IsOnlineRole, "isOnline"},
-      {HasMotorRole, "hasMotor"},   {HasIrRole, "hasIr"},
-      {HasHeaterRole, "hasHeater"},
-  };
+  return {{IpRole, "ip"},
+          {RtspUrlRole, "rtspUrl"},
+          {TypeRole, "type"},
+          {IsOnlineRole, "isOnline"},
+          {CpuRole, "cpu"},
+          {MemoryRole, "memory"},
+          {TempRole, "temp"},
+          {UptimeRole, "uptime"},
+          {HasMotorRole, "hasMotor"},
+          {HasIrRole, "hasIr"},
+          {HasHeaterRole, "hasHeater"}};
 }
 
-bool DeviceModel::hasDevice(const QString &url) const {
-  return findIndexByRtspUrl(url) >= 0;
+// ── onStoreUpdated ───────────────────────────────────────────────────────────
+void DeviceModel::onStoreUpdated(std::vector<DeviceIntegrated> snapshot) {
+  // IP 기반 업데이트
+  for (const auto &snap : snapshot) {
+    QString ip = QString::fromStdString(snap.ip);
+    int idx = findIndexByIp(ip);
+
+    if (idx >= 0) {
+      // 기존 항목 업데이트
+      auto &entry = devices_[idx];
+
+      entry.rtspUrl = QString::fromStdString(snap.rtspUrl);
+      entry.type = QString::fromStdString(snap.type);
+      entry.isOnline = snap.isOnline;
+      entry.cpu = snap.cpu;
+      entry.memory = snap.memory;
+      entry.temp = snap.temp;
+      entry.uptime = snap.uptime;
+      entry.lastUpdate = snap.lastUpdate;
+      entry.hasMotor = snap.hasMotor;
+      entry.hasIr = snap.hasIr;
+      entry.hasHeater = snap.hasHeater;
+
+      // History 업데이트
+      entry.history.clear();
+      for (const auto &h : snap.history) {
+        entry.history.append(h);
+      }
+
+      emit dataChanged(createIndex(idx, 0), createIndex(idx, 0));
+
+    } else {
+      // 신규 항목 추가
+      DeviceEntry entry;
+      entry.ip = ip;
+      entry.rtspUrl = QString::fromStdString(snap.rtspUrl);
+      entry.type = QString::fromStdString(snap.type);
+      entry.isOnline = snap.isOnline;
+      entry.cpu = snap.cpu;
+      entry.memory = snap.memory;
+      entry.temp = snap.temp;
+      entry.uptime = snap.uptime;
+      entry.lastUpdate = snap.lastUpdate;
+      entry.hasMotor = snap.hasMotor;
+      entry.hasIr = snap.hasIr;
+      entry.hasHeater = snap.hasHeater;
+
+      for (const auto &h : snap.history) {
+        entry.history.append(h);
+      }
+
+      beginInsertRows(QModelIndex(), devices_.size(), devices_.size());
+      devices_.append(entry);
+      endInsertRows();
+    }
+  }
+
+  // Rebuild byIp_
+  byIp_.clear();
+  for (int i = 0; i < devices_.size(); ++i) {
+    byIp_[devices_[i].ip] = i;
+  }
 }
-bool DeviceModel::hasMotor(const QString &url) const {
-  const int idx = findIndexByRtspUrl(url);
-  return idx >= 0 ? m_devices[idx].cap.motor : false;
+
+// ── QML 조회 함수 ────────────────────────────────────────────────────────────
+int DeviceModel::findIndexByIp(const QString &ip) const {
+  auto it = byIp_.find(ip);
+  return it != byIp_.end() ? *it : -1;
 }
-bool DeviceModel::hasIr(const QString &url) const {
-  const int idx = findIndexByRtspUrl(url);
-  return idx >= 0 ? m_devices[idx].cap.ir : false;
+
+bool DeviceModel::hasDevice(const QString &ip) const {
+  return findIndexByIp(ip) >= 0;
 }
-bool DeviceModel::hasHeater(const QString &url) const {
-  const int idx = findIndexByRtspUrl(url);
-  return idx >= 0 ? m_devices[idx].cap.heater : false;
+
+QString DeviceModel::rtspUrl(const QString &ip) const {
+  int idx = findIndexByIp(ip);
+  return idx >= 0 ? devices_[idx].rtspUrl : "";
 }
-QString DeviceModel::deviceIp(const QString &url) const {
-  const int idx = findIndexByRtspUrl(url);
-  return idx >= 0 ? m_devices[idx].deviceIp : "";
+
+double DeviceModel::cpu(const QString &ip) const {
+  int idx = findIndexByIp(ip);
+  return idx >= 0 ? devices_[idx].cpu : 0.0;
 }
+
+double DeviceModel::memory(const QString &ip) const {
+  int idx = findIndexByIp(ip);
+  return idx >= 0 ? devices_[idx].memory : 0.0;
+}
+
+double DeviceModel::temp(const QString &ip) const {
+  int idx = findIndexByIp(ip);
+  return idx >= 0 ? devices_[idx].temp : 0.0;
+}
+
+// ✅ History 조회 (QML용 QVariantList 반환)
+QVariantList DeviceModel::getHistory(const QString &ip) const {
+  int idx = findIndexByIp(ip);
+  if (idx < 0)
+    return {};
+
+  QVariantList result;
+  for (const auto &h : devices_[idx].history) {
+    QVariantMap item;
+    item["timestamp"] = h.timestamp;
+    item["cpu"] = h.cpu;
+    item["memory"] = h.memory;
+    item["temp"] = h.temp;
+    item["uptime"] = h.uptime;
+    result.append(item);
+  }
+
+  return result;
+}
+
+// --- rtspUrl-based lookup methods ---
 
 int DeviceModel::findIndexByRtspUrl(const QString &rtspUrl) const {
-  const auto it = m_byUrl.find(rtspUrl);
-  if (it != m_byUrl.end())
-    return *it;
-
-  const QString host = hostFromRtsp(rtspUrl);
-  if (host.isEmpty())
-    return -1;
-
-  for (int i = 0; i < m_devices.size(); ++i) {
-    const auto &d = m_devices[i];
-    if (!d.deviceIp.isEmpty() && d.deviceIp == host)
-      return i;
-    if (hostFromRtsp(d.rtspUrl) == host)
+  for (int i = 0; i < devices_.size(); ++i) {
+    if (devices_[i].rtspUrl == rtspUrl)
       return i;
   }
   return -1;
 }
 
-// ── New path: called by Core via QMetaObject::invokeMethod on GUI thread
-// ────── Receives a pre-parsed vector<DeviceData> from DeviceStore
-// (ThreadPool). NO JSON work here. Just update the Qt model.
-void DeviceModel::onStoreUpdated(std::vector<DeviceData> snapshot) {
-  QSet<QString> representedUrls;
+QString DeviceModel::deviceIp(const QString &rtspUrl) const {
+  int idx = findIndexByRtspUrl(rtspUrl);
+  return idx >= 0 ? devices_[idx].ip : QString();
+}
 
-  // 1. Update existing entries
-  for (int i = 0; i < m_devices.size(); ++i) {
-    auto &entry = m_devices[i];
-    auto it = std::find_if(
-        snapshot.begin(), snapshot.end(), [&](const DeviceData &d) {
-          return QString::fromStdString(d.rtspUrl) == entry.rtspUrl;
-        });
+bool DeviceModel::hasMotor(const QString &rtspUrl) const {
+  int idx = findIndexByRtspUrl(rtspUrl);
+  return idx >= 0 ? devices_[idx].hasMotor : false;
+}
 
-    bool changed = false;
-    QList<int> changedRoles;
+bool DeviceModel::hasIr(const QString &rtspUrl) const {
+  int idx = findIndexByRtspUrl(rtspUrl);
+  return idx >= 0 ? devices_[idx].hasIr : false;
+}
 
-    if (it == snapshot.end()) {
-      // Mark offline if gone
-      if (entry.isOnline) {
-        entry.isOnline = false;
-        changed = true;
-        changedRoles << IsOnlineRole;
-      }
-    } else {
-      const DeviceData &snap = *it;
-      representedUrls.insert(entry.rtspUrl);
+bool DeviceModel::hasHeater(const QString &rtspUrl) const {
+  int idx = findIndexByRtspUrl(rtspUrl);
+  return idx >= 0 ? devices_[idx].hasHeater : false;
+}
 
-      if (entry.isOnline != snap.isOnline) {
-        entry.isOnline = snap.isOnline;
-        changed = true;
-        changedRoles << IsOnlineRole;
-      }
-
-      QString snapIp = QString::fromStdString(snap.deviceIp);
-      if (entry.deviceIp != snapIp) {
-        entry.deviceIp = snapIp;
-        changed = true;
-        changedRoles << DeviceIpRole;
-      }
-
-      QString snapTitle = QString::fromStdString(snap.title);
-      if (entry.title != snapTitle) {
-        entry.title = snapTitle;
-        changed = true;
-        changedRoles << TitleRole;
-      }
-
-      if (entry.cap.motor != snap.cap.motor) {
-        entry.cap.motor = snap.cap.motor;
-        changed = true;
-        changedRoles << HasMotorRole;
-      }
-      if (entry.cap.ir != snap.cap.ir) {
-        entry.cap.ir = snap.cap.ir;
-        changed = true;
-        changedRoles << HasIrRole;
-      }
-      if (entry.cap.heater != snap.cap.heater) {
-        entry.cap.heater = snap.cap.heater;
-        changed = true;
-        changedRoles << HasHeaterRole;
-      }
-    }
-
-    if (changed) {
-      emit dataChanged(createIndex(i, 0), createIndex(i, 0), changedRoles);
-    }
-  }
-
-  // 2. Insert new entries
-  QList<DeviceEntry> newEntries;
-  int nextIdx = m_devices.size();
-  for (const auto &d : snapshot) {
-    QString url = QString::fromStdString(d.rtspUrl);
-    if (representedUrls.contains(url))
-      continue;
-
-    DeviceEntry e;
-    e.rtspUrl = url;
-    e.deviceIp = QString::fromStdString(d.deviceIp);
-    e.title = QString::fromStdString(d.title);
-    e.isOnline = d.isOnline;
-    e.cap.motor = d.cap.motor;
-    e.cap.ir = d.cap.ir;
-    e.cap.heater = d.cap.heater;
-
-    newEntries.append(e);
-  }
-
-  if (!newEntries.isEmpty()) {
-    beginInsertRows(QModelIndex(), m_devices.size(),
-                    m_devices.size() + newEntries.size() - 1);
-    for (const auto &e : newEntries) {
-      m_devices.append(e);
-    }
-    endInsertRows();
-  }
-
-  // Rebuild m_byUrl fully here to prevent stale indices
-  m_byUrl.clear();
-  for (int i = 0; i < m_devices.size(); ++i) {
-    if (!m_devices[i].rtspUrl.isEmpty()) {
-      m_byUrl[m_devices[i].rtspUrl] = i;
-    }
-  }
-
-  qDebug() << "[DeviceModel] onStoreUpdated, count:" << m_devices.size();
+bool DeviceModel::hasDeviceByUrl(const QString &rtspUrl) const {
+  return findIndexByRtspUrl(rtspUrl) >= 0;
 }

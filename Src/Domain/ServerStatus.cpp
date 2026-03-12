@@ -33,8 +33,8 @@ void ServerStatusStore::updateFromJson(const std::string &json, Callback cb) {
   }
 
   {
-    std::lock_guard<std::mutex> lk(m_mutex);
-    m_status = s;
+    std::lock_guard<std::mutex> lk(mutex_);
+    status_ = s;
   }
 
   if (cb)
@@ -42,34 +42,34 @@ void ServerStatusStore::updateFromJson(const std::string &json, Callback cb) {
 }
 
 ServerStatusData ServerStatusStore::snapshot() const {
-  std::lock_guard<std::mutex> lk(m_mutex);
-  return m_status;
+  std::lock_guard<std::mutex> lk(mutex_);
+  return status_;
 }
 
 double ServerStatusStore::deviceCpu(const std::string &ip) const {
-  std::lock_guard<std::mutex> lk(m_mutex);
-  for (auto &d : m_status.devices)
+  std::lock_guard<std::mutex> lk(mutex_);
+  for (auto &d : status_.devices)
     if (d.ip == ip)
       return d.cpu;
   return 0.0;
 }
 double ServerStatusStore::deviceMemory(const std::string &ip) const {
-  std::lock_guard<std::mutex> lk(m_mutex);
-  for (auto &d : m_status.devices)
+  std::lock_guard<std::mutex> lk(mutex_);
+  for (auto &d : status_.devices)
     if (d.ip == ip)
       return d.memory;
   return 0.0;
 }
 double ServerStatusStore::deviceTemp(const std::string &ip) const {
-  std::lock_guard<std::mutex> lk(m_mutex);
-  for (auto &d : m_status.devices)
+  std::lock_guard<std::mutex> lk(mutex_);
+  for (auto &d : status_.devices)
     if (d.ip == ip)
       return d.temp;
   return 0.0;
 }
 int ServerStatusStore::deviceUptime(const std::string &ip) const {
-  std::lock_guard<std::mutex> lk(m_mutex);
-  for (auto &d : m_status.devices)
+  std::lock_guard<std::mutex> lk(mutex_);
+  for (auto &d : status_.devices)
     if (d.ip == ip)
       return d.uptime;
   return 0;

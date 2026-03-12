@@ -55,5 +55,5 @@ signals:
   void assignReceived(QString json);
 
 private:
-  INetworkService *m_service; // non-owning
+  INetworkService *service_; // non-owning
 };

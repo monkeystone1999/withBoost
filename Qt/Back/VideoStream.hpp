@@ -9,7 +9,6 @@
 #include <memory>
 #include <vector>
 
-
 #include "Network/Video.hpp"
 
 class VideoWorker : public QObject {
@@ -19,7 +18,7 @@ public:
   explicit VideoWorker(const QString &rtspUrl, QObject *parent = nullptr);
   ~VideoWorker() override;
 
-  QString rtspUrl() const { return m_rtspUrl; }
+  QString rtspUrl() const { return rtspUrl_; }
   void startStream();
   void stopStream();
 
@@ -32,21 +31,23 @@ public:
 
   FrameData getLatestFrame() const;
   uint64_t frameSeq() const {
-    return m_frameSeq.load(std::memory_order_acquire);
+    return frameSeq_.load(std::memory_order_acquire);
   }
 
 signals:
+  // Pull 기반 렌더링으로 전환됨.
+  // 이 signal은 더 이상 emit되지 않지만, QML 호환성을 위해 선언을 유지.
   void frameReady();
 
 private:
-  QString m_rtspUrl;
-  std::unique_ptr<Video> m_video;
+  QString rtspUrl_;
+  std::unique_ptr<Video> video_;
 
-  std::atomic<std::shared_ptr<std::vector<uint8_t>>> m_atomicBuffer;
-  std::atomic<int> m_atomicWidth{0};
-  std::atomic<int> m_atomicHeight{0};
-  std::atomic<int> m_atomicStride{0};
-  std::atomic<uint64_t> m_frameSeq{0};
+  std::atomic<std::shared_ptr<std::vector<uint8_t>>> atomicBuffer_;
+  std::atomic<int> atomicWidth_{0};
+  std::atomic<int> atomicHeight_{0};
+  std::atomic<int> atomicStride_{0};
+  std::atomic<uint64_t> frameSeq_{0};
 };
 
 class VideoManager : public QObject {
@@ -71,6 +72,6 @@ public slots:
   void restartWorker(const QString &rtspUrl);
 
 private:
-  QMap<QString, VideoWorker *> m_workers;
-  QMap<int, QString> m_slotToUrl;
+  QMap<QString, VideoWorker *> workers_;
+  QMap<int, QString> slotToUrl_;
 };

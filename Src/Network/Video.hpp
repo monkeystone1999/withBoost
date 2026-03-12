@@ -39,17 +39,17 @@ public:
 
 private:
   // FFmpeg 컨텍스트
-  AVFormatContext *m_formatCtx = nullptr;
-  AVCodecContext *m_codecCtx = nullptr;
-  struct SwsContext *m_swsCtx = nullptr;
-  int m_videoStreamIndex = -1;
+  AVFormatContext *formatCtx_ = nullptr;
+  AVCodecContext *codecCtx_ = nullptr;
+  struct SwsContext *swsCtx_ = nullptr;
+  int videoStreamIndex_ = -1;
 
   // Decode thread
-  std::thread m_decodeThread;
-  std::atomic<bool> m_stopThread{false};
+  std::thread decodeThread_;
+  std::atomic<bool> stopThread_{false};
 
   // 버퍼 풀 (더블 버퍼 대신 여러 개의 버퍼를 풀링하여 재사용)
-  std::vector<std::shared_ptr<std::vector<uint8_t>>> m_bufferPool;
+  std::vector<std::shared_ptr<std::vector<uint8_t>>> bufferPool_;
 
   void decodeLoopFFmpeg(const std::string &url);
   bool tryOnceFFmpeg(const std::string &url);

@@ -31,7 +31,7 @@ public:
     bool isConnected() const override;
 
 private:
-    std::unique_ptr<SessionManager> m_manager;
-    std::atomic<bool>               m_connected{false};
-    std::string                     m_sessionName;
+    std::unique_ptr<SessionManager> manager_;
+    std::atomic<bool>               connected_{false};
+    std::string                     sessionName_;
 };

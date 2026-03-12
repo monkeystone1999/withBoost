@@ -12,9 +12,9 @@ public:
   explicit AuthController(NetworkBridge *bridge, const QString &host,
                           const QString &port, QObject *parent = nullptr);
 
-  bool isLoading() const { return m_isLoading; }
-  bool isError() const { return m_isError; }
-  QString errorMessage() const { return m_errorMessage; }
+  bool isLoading() const { return isLoading_; }
+  bool isError() const { return isError_; }
+  QString errorMessage() const { return errorMessage_; }
 
 signals:
   void isLoadingChanged();
@@ -27,12 +27,12 @@ protected:
   void setError(const QString &msg);
   void clearError();
 
-  NetworkBridge *m_bridge;
-  QString m_host;
-  QString m_port;
-  bool m_isLoading = false;
-  bool m_isError = false;
-  QString m_errorMessage;
+  NetworkBridge *bridge_;
+  QString host_;
+  QString port_;
+  bool isLoading_ = false;
+  bool isError_ = false;
+  QString errorMessage_;
 };
 
 class LoginController : public AuthController {
@@ -43,8 +43,8 @@ public:
   explicit LoginController(NetworkBridge *bridge, const QString &host,
                            const QString &port, QObject *parent = nullptr);
 
-  QString state() const { return m_state; }
-  QString username() const { return m_username; }
+  QString state() const { return state_; }
+  QString username() const { return username_; }
 
   Q_INVOKABLE void login(const QString &id, const QString &password);
   Q_INVOKABLE void logout();
@@ -63,10 +63,10 @@ protected:
   void onConnected() override;
 
 private:
-  QString m_state;
-  QString m_username;
-  QString m_pendingId;
-  QString m_pendingPassword;
+  QString state_;
+  QString username_;
+  QString pendingId_;
+  QString pendingPassword_;
 };
 
 class SignupController : public AuthController {
@@ -89,7 +89,7 @@ protected:
   void onConnected() override;
 
 private:
-  QString m_pendingId;
-  QString m_pendingEmail;
-  QString m_pendingPassword;
+  QString pendingId_;
+  QString pendingEmail_;
+  QString pendingPassword_;
 };

@@ -38,24 +38,24 @@ public:
   commitTextureOperations(QRhi *rhi,
                           QRhiResourceUpdateBatch *resourceUpdates) override;
 
-  QSize textureSize() const override { return m_size; }
+  QSize textureSize() const override { return size_; }
   bool hasAlphaChannel() const override { return false; }
   bool hasMipmaps() const override { return false; }
 
 private:
   // 렌더 스레드 전용 상태
-  QRhiTexture *m_rhiTex = nullptr; // GPU 텍스처 핸들 — 재사용
-  QSize m_size;                    // 현재 할당된 텍스처 크기
-  bool m_dirty = false;            // commitTextureOperations 트리거
+  QRhiTexture *rhiTex_ = nullptr; // GPU 텍스처 핸들 — 재사용
+  QSize size_;                    // 현재 할당된 텍스처 크기
+  bool dirty_ = false;            // commitTextureOperations 트리거
 
   // pending: setPendingFrame()에서 교환, commitTextureOperations에서 소비
-  std::shared_ptr<std::vector<uint8_t>> m_pendingBuf;
+  std::shared_ptr<std::vector<uint8_t>> pendingBuf_;
 
   // current: GPU가 업로드를 완전히 마칠 때까지 버퍼 수명을 유지하기 위함
   // (Zero-copy lifetime 연장)
-  std::shared_ptr<std::vector<uint8_t>> m_currentBuf;
+  std::shared_ptr<std::vector<uint8_t>> currentBuf_;
 
-  int m_pendingW = 0;
-  int m_pendingH = 0;
-  int m_pendingStride = 0;
+  int pendingW_ = 0;
+  int pendingH_ = 0;
+  int pendingStride_ = 0;
 };

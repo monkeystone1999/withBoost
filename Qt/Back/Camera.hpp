@@ -108,9 +108,9 @@ private:
   bool _mergeGroupByIndex(int anyTileRowIndex);
   bool _autoSplitForIndex(int rowIndex);
 
-  int m_nextSlotId = 0;
-  int m_nextSplitGroupId = 1;
+  int nextSlotId_ = 0;
+  int nextSplitGroupId_ = 1;
 
-  QList<CameraEntry> m_cameras;
-  QSet<int> m_autoSplitAppliedSlotIds;
+  QList<CameraEntry> cameras_;
+  QSet<int> autoSplitAppliedSlotIds_;
 };

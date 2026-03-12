@@ -44,7 +44,7 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    int count() const { return m_users.count(); }
+    int count() const { return users_.count(); }
 
     Q_INVOKABLE void addUser(const QString &userId, const QString &username,
                              const QString &email, const QString &role);
@@ -67,6 +67,6 @@ signals:
 private:
     int findIndexByUserId(const QString &userId) const;
 
-    QList<UserEntry> m_users;
-    QHash<QString, int> m_byId;  // userId -> row index
+    QList<UserEntry> users_;
+    QHash<QString, int> byId_;  // userId -> row index
 };

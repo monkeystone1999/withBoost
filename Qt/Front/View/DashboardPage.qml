@@ -149,8 +149,8 @@ Item {
             }
 
             onSendDeviceCmd: (ip, motor, ir, heater) => {
-                if (typeof deviceModel !== "undefined") {
-                    deviceModel.sendDeviceCmd(ip, motor, ir, heater);
+                if (typeof networkBridge !== "undefined") {
+                    networkBridge.sendDevice(ip, motor, ir, heater);
                 }
             }
         }

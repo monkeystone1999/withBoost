@@ -40,6 +40,6 @@ public:
   int deviceUptime(const std::string &ip) const;
 
 private:
-  mutable std::mutex m_mutex;
-  ServerStatusData m_status;
+  mutable std::mutex mutex_;
+  ServerStatusData status_;
 };

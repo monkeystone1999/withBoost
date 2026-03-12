@@ -26,7 +26,7 @@ buildJson(std::initializer_list<std::pair<const char *, std::string>> pairs) {
 }
 
 NetworkBridge::NetworkBridge(INetworkService *service, QObject *parent)
-    : QObject(parent), m_service(service) {}
+    : QObject(parent), service_(service) {}
 
 void NetworkBridge::connectToServer(const QString &host, const QString &port,
                                     const QString &purpose) {
@@ -111,16 +111,16 @@ void NetworkBridge::connectToServer(const QString &host, const QString &port,
         Qt::QueuedConnection);
   };
 
-  m_service->connect(host.toStdString(), port.toStdString(), cbs);
+  service_->connect(host.toStdString(), port.toStdString(), cbs);
 }
 
-void NetworkBridge::disconnect() { m_service->disconnect(); }
+void NetworkBridge::disconnect() { service_->disconnect(); }
 
 void NetworkBridge::sendLogin(const QString &id, const QString &pw) {
   // Type conversion only: QString → std::string → raw JSON
   const auto body =
       buildJson({{"id", id.toStdString()}, {"pw", pw.toStdString()}});
-  m_service->send(static_cast<uint8_t>(0x01), body); // MessageType::LOGIN
+  service_->send(static_cast<uint8_t>(0x01), body); // MessageType::LOGIN
 }
 
 void NetworkBridge::sendSignup(const QString &id, const QString &email,
@@ -129,17 +129,17 @@ void NetworkBridge::sendSignup(const QString &id, const QString &email,
                                {"id", id.toStdString()},
                                {"email", email.toStdString()},
                                {"pw", pw.toStdString()}});
-  m_service->send(static_cast<uint8_t>(0x08), body); // ASSIGN
+  service_->send(static_cast<uint8_t>(0x08), body); // ASSIGN
 }
 
 void NetworkBridge::sendListPending() {
-  m_service->send(static_cast<uint8_t>(0x08), R"({"action":"list_pending"})");
+  service_->send(static_cast<uint8_t>(0x08), R"({"action":"list_pending"})");
 }
 
 void NetworkBridge::sendApprove(const QString &targetId) {
   const auto body = buildJson(
       {{"action", "approve"}, {"target_username", targetId.toStdString()}});
-  m_service->send(static_cast<uint8_t>(0x08), body);
+  service_->send(static_cast<uint8_t>(0x08), body);
 }
 
 void NetworkBridge::sendDevice(const QString &deviceIp, const QString &motor,
@@ -151,7 +151,7 @@ void NetworkBridge::sendDevice(const QString &deviceIp, const QString &motor,
                                {"ir", ir.toStdString()},
                                {"heater", heater.toStdString()}});
   qDebug() << "[NetworkBridge] sendDevice ->" << QString::fromStdString(body);
-  m_service->send(static_cast<uint8_t>(0x04), body); // DEVICE
+  service_->send(static_cast<uint8_t>(0x04), body); // DEVICE
 }
 
-bool NetworkBridge::isConnected() const { return m_service->isConnected(); }
+bool NetworkBridge::isConnected() const { return service_->isConnected(); }

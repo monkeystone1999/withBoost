@@ -32,10 +32,10 @@ class ServerStatusModel : public QObject {
 public:
   explicit ServerStatusModel(QObject *parent = nullptr);
 
-  double serverCpu() const { return m_server.cpu; }
-  double serverMemory() const { return m_server.memory; }
-  double serverTemp() const { return m_server.temp; }
-  bool hasServer() const { return m_server.available; }
+  double serverCpu() const { return server_.cpu; }
+  double serverMemory() const { return server_.memory; }
+  double serverTemp() const { return server_.temp; }
+  bool hasServer() const { return server_.available; }
 
   // QML에서 ip로 디바이스 상태 조회
   Q_INVOKABLE double deviceCpu(const QString &ip) const;
@@ -51,6 +51,6 @@ signals:
   void statusUpdated();
 
 private:
-  ServerStatus m_server;
-  QList<DeviceStatus> m_devices;
+  ServerStatus server_;
+  QList<DeviceStatus> devices_;
 };

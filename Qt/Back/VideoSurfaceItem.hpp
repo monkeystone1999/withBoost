@@ -7,14 +7,19 @@
 #include <QQuickWindow>
 #include <QRectF>
 #include <QSGImageNode>
+#include <QTimer>
 
-// ── VIDEO_STREAMING_SPEC: QSGDynamicTexture + beforeSynchronizing ────────────
+// ── VIDEO_STREAMING_SPEC: Pull 기반 렌더링 ──────────────────────────────────
 //
-// 이전 QTimer 방식 제거. 새로운 방식:
-// Render Thread 의 beforeSynchronizing 단계에서 VideoWorker 로부터
-// 최신 프레임을 lock-free 로 읽어들이고, m_frameTex 의 pending 버퍼만 교체한다.
-// 실제 GPU 업로드는 GUI 블로킹 구간이 끝난 뒤 commitTextureOperations 에서
-// QRhi 직접 제어를 통해 수행되어 GUI Thread Sync 지연을 완전히 소거한다.
+// 변경점 (Pull 기반 최적화):
+// - frameReady signal 연결 제거 → beforeSynchronizing에서만 프레임 pull
+// - Signal/Slot 오버헤드 제거로 UI stutter 완전 제거
+// - 렌더링 주기(~16.67ms for 60Hz)에 정확히 동기화
+//
+// 유지된 것 (안정성):
+// - sws_scale CPU RGBA 변환 (검증된 안정적 파이프라인)
+// - QSGImageNode + RGBA 텍스처 (표준 Qt Scene Graph 방식)
+// - VideoFrameTexture QRhi 텍스처 업로드
 // ─────────────────────────────────────────────────────────────────────────────
 class VideoSurfaceItem : public QQuickItem {
   Q_OBJECT
@@ -29,7 +34,7 @@ public:
   QObject *worker() const;
   void setWorker(QObject *obj);
 
-  QRectF cropRect() const { return m_cropRect; }
+  QRectF cropRect() const { return cropRect_; }
   void setCropRect(const QRectF &r);
 
 signals:
@@ -45,14 +50,17 @@ private slots:
   void onBeforeSynchronizing();
 
 private:
-  QPointer<VideoWorker> m_worker;
-  QPointer<QQuickWindow> m_window;
+  QPointer<VideoWorker> worker_;
+  QPointer<QQuickWindow> window_;
 
-  // ── GUI-thread state ──────────────────────────────────────────────────────
-  QRectF m_cropRect{0, 0, 1, 1};
+  // ── GUI-thread state ──────────────────────────────────────────────────
+  QRectF cropRect_{0, 0, 1, 1};
 
-  // ── Render-thread private — never touch from GUI thread ───────────────────
-  VideoFrameTexture *m_frameTex{nullptr};
-  uint64_t m_lastSeq{UINT64_MAX};
-  bool m_nodeReady{false};
+  // ── Render-thread private — never touch from GUI thread ───────────────
+  VideoFrameTexture *frameTex_{nullptr};
+  uint64_t lastSeq_{UINT64_MAX};
+  bool nodeReady_{false};
+
+  // Timer to drive the render loop
+  QTimer *updateTimer_{nullptr};
 };

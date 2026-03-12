@@ -219,11 +219,13 @@ Item {
                             }
                         }
 
-                        // Device Controls (Device 페이지인 경우)
+                        // Device Controls (Device page only)
                         Column {
                             visible: root.pageType === "Device" && typeof deviceModel !== "undefined"
                             width: parent.width
                             spacing: 8
+
+                            property string deviceIp: typeof deviceModel !== "undefined" ? deviceModel.deviceIp(root.selectedUrl) : ""
 
                             Rectangle {
                                 width: parent.width
@@ -251,24 +253,40 @@ Item {
                                 }
 
                                 BasicButton {
-                                    text: "←"
+                                    text: "\u2190"
                                     width: 40
                                     height: 32
+                                    onClicked: {
+                                        if (typeof networkBridge !== "undefined")
+                                            networkBridge.sendDevice(parent.parent.parent.deviceIp, "a", "", "");
+                                    }
                                 }
                                 BasicButton {
-                                    text: "↑"
+                                    text: "\u2191"
                                     width: 40
                                     height: 32
+                                    onClicked: {
+                                        if (typeof networkBridge !== "undefined")
+                                            networkBridge.sendDevice(parent.parent.parent.deviceIp, "w", "", "");
+                                    }
                                 }
                                 BasicButton {
-                                    text: "↓"
+                                    text: "\u2193"
                                     width: 40
                                     height: 32
+                                    onClicked: {
+                                        if (typeof networkBridge !== "undefined")
+                                            networkBridge.sendDevice(parent.parent.parent.deviceIp, "s", "", "");
+                                    }
                                 }
                                 BasicButton {
-                                    text: "→"
+                                    text: "\u2192"
                                     width: 40
                                     height: 32
+                                    onClicked: {
+                                        if (typeof networkBridge !== "undefined")
+                                            networkBridge.sendDevice(parent.parent.parent.deviceIp, "d", "", "");
+                                    }
                                 }
                             }
 
@@ -288,6 +306,12 @@ Item {
                                 Switch {
                                     id: irSwitch
                                     anchors.verticalCenter: parent.verticalCenter
+                                    onToggled: {
+                                        if (typeof networkBridge !== "undefined") {
+                                            var ip = typeof deviceModel !== "undefined" ? deviceModel.deviceIp(root.selectedUrl) : "";
+                                            networkBridge.sendDevice(ip, "", checked ? "on" : "off", "");
+                                        }
+                                    }
                                 }
                             }
 
@@ -307,6 +331,12 @@ Item {
                                 Switch {
                                     id: heaterSwitch
                                     anchors.verticalCenter: parent.verticalCenter
+                                    onToggled: {
+                                        if (typeof networkBridge !== "undefined") {
+                                            var ip = typeof deviceModel !== "undefined" ? deviceModel.deviceIp(root.selectedUrl) : "";
+                                            networkBridge.sendDevice(ip, "", "", checked ? "on" : "off");
+                                        }
+                                    }
                                 }
                             }
                         }

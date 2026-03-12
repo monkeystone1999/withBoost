@@ -29,6 +29,6 @@ public:
   std::vector<CameraData> snapshot() const override;
 
 private:
-  mutable std::mutex m_mutex;
-  std::vector<CameraData> m_data;
+  mutable std::mutex mutex_;
+  std::vector<CameraData> data_;
 };

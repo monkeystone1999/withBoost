@@ -24,8 +24,8 @@ void CameraStore::updateFromJson(const std::string &json, Callback cb) {
   }
 
   {
-    std::lock_guard<std::mutex> lk(m_mutex);
-    m_data = newData;
+    std::lock_guard<std::mutex> lk(mutex_);
+    data_ = newData;
   }
 
   if (cb)
@@ -33,6 +33,6 @@ void CameraStore::updateFromJson(const std::string &json, Callback cb) {
 }
 
 std::vector<CameraData> CameraStore::snapshot() const {
-  std::lock_guard<std::mutex> lk(m_mutex);
-  return m_data;
+  std::lock_guard<std::mutex> lk(mutex_);
+  return data_;
 }

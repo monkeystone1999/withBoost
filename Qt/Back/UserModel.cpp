@@ -5,14 +5,14 @@ UserModel::UserModel(QObject *parent) : QAbstractListModel(parent) {}
 int UserModel::rowCount(const QModelIndex &parent) const {
     if (parent.isValid())
         return 0;
-    return m_users.size();
+    return users_.size();
 }
 
 QVariant UserModel::data(const QModelIndex &index, int role) const {
-    if (!index.isValid() || index.row() >= m_users.size())
+    if (!index.isValid() || index.row() >= users_.size())
         return {};
 
-    const UserEntry &user = m_users[index.row()];
+    const UserEntry &user = users_[index.row()];
 
     switch (role) {
     case UserIdRole:
@@ -52,20 +52,20 @@ QHash<int, QByteArray> UserModel::roleNames() const {
 void UserModel::addUser(const QString &userId, const QString &username,
                         const QString &email, const QString &role) {
     // Check if user already exists
-    if (m_byId.contains(userId)) {
-        int idx = m_byId[userId];
-        m_users[idx].username = username;
-        m_users[idx].email = email;
-        m_users[idx].role = role;
-        m_users[idx].isOnline = true;
-        m_users[idx].lastLogin = QDateTime::currentDateTime();
+    if (byId_.contains(userId)) {
+        int idx = byId_[userId];
+        users_[idx].username = username;
+        users_[idx].email = email;
+        users_[idx].role = role;
+        users_[idx].isOnline = true;
+        users_[idx].lastLogin = QDateTime::currentDateTime();
 
         QModelIndex modelIdx = index(idx);
         emit dataChanged(modelIdx, modelIdx);
         return;
     }
 
-    int row = m_users.size();
+    int row = users_.size();
     beginInsertRows(QModelIndex(), row, row);
 
     UserEntry entry;
@@ -77,8 +77,8 @@ void UserModel::addUser(const QString &userId, const QString &username,
     entry.lastLogin = QDateTime::currentDateTime();
     entry.activeCameras = 0;
 
-    m_users.append(entry);
-    m_byId[userId] = row;
+    users_.append(entry);
+    byId_[userId] = row;
 
     endInsertRows();
     emit countChanged();
@@ -91,13 +91,13 @@ void UserModel::removeUser(const QString &userId) {
         return;
 
     beginRemoveRows(QModelIndex(), idx, idx);
-    m_users.removeAt(idx);
-    m_byId.remove(userId);
+    users_.removeAt(idx);
+    byId_.remove(userId);
 
     // Rebuild index map
-    m_byId.clear();
-    for (int i = 0; i < m_users.size(); ++i) {
-        m_byId[m_users[i].userId] = i;
+    byId_.clear();
+    for (int i = 0; i < users_.size(); ++i) {
+        byId_[users_[i].userId] = i;
     }
 
     endRemoveRows();
@@ -110,9 +110,9 @@ void UserModel::setUserOnline(const QString &userId, bool online) {
     if (idx < 0)
         return;
 
-    m_users[idx].isOnline = online;
+    users_[idx].isOnline = online;
     if (online) {
-        m_users[idx].lastLogin = QDateTime::currentDateTime();
+        users_[idx].lastLogin = QDateTime::currentDateTime();
     }
 
     QModelIndex modelIdx = index(idx);
@@ -124,15 +124,15 @@ void UserModel::updateActiveCameras(const QString &userId, int count) {
     if (idx < 0)
         return;
 
-    m_users[idx].activeCameras = count;
+    users_[idx].activeCameras = count;
     QModelIndex modelIdx = index(idx);
     emit dataChanged(modelIdx, modelIdx);
 }
 
 void UserModel::clearAll() {
     beginResetModel();
-    m_users.clear();
-    m_byId.clear();
+    users_.clear();
+    byId_.clear();
     endResetModel();
     emit countChanged();
 }
@@ -141,20 +141,20 @@ QString UserModel::getUsernameById(const QString &userId) const {
     int idx = findIndexByUserId(userId);
     if (idx < 0)
         return QString();
-    return m_users[idx].username;
+    return users_[idx].username;
 }
 
 bool UserModel::isUserAdmin(const QString &userId) const {
     int idx = findIndexByUserId(userId);
     if (idx < 0)
         return false;
-    return m_users[idx].role == "admin";
+    return users_[idx].role == "admin";
 }
 
 void UserModel::onStoreUpdated(std::vector<UserData> snapshot) {
     beginResetModel();
-    m_users.clear();
-    m_byId.clear();
+    users_.clear();
+    byId_.clear();
 
     for (size_t i = 0; i < snapshot.size(); ++i) {
         const UserData &data = snapshot[i];
@@ -170,8 +170,8 @@ void UserModel::onStoreUpdated(std::vector<UserData> snapshot) {
         entry.ipAddress = QString::fromStdString(data.ipAddress);
         entry.activeCameras = data.activeCameras;
 
-        m_users.append(entry);
-        m_byId[entry.userId] = static_cast<int>(i);
+        users_.append(entry);
+        byId_[entry.userId] = static_cast<int>(i);
     }
 
     endResetModel();
@@ -179,8 +179,8 @@ void UserModel::onStoreUpdated(std::vector<UserData> snapshot) {
 }
 
 int UserModel::findIndexByUserId(const QString &userId) const {
-    auto it = m_byId.find(userId);
-    if (it == m_byId.end())
+    auto it = byId_.find(userId);
+    if (it == byId_.end())
         return -1;
     return it.value();
 }

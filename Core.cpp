@@ -48,86 +48,86 @@ Core::Core() = default;
 Core::~Core() = default;
 
 void Core::init(QQmlEngine &engine) {
-    constructLayer1();
-    constructLayer2(engine);
-    wireSignals();
-    registerContextProperties(engine);
-    qDebug() << "[Core] init complete";
+  constructLayer1();
+  constructLayer2(engine);
+  wireSignals();
+  registerContextProperties(engine);
+  qDebug() << "[Core] init complete";
 }
 
 void Core::shutdown() {
-    qDebug() << "[Core] shutdown — stopping video streams";
-    if (m_videoManager)
-        m_videoManager->clearAll();
+  qDebug() << "[Core] shutdown — stopping video streams";
+  if (videoManager_)
+    videoManager_->clearAll();
 
-    qDebug() << "[Core] shutdown — disconnecting network";
-    if (m_networkService)
-        m_networkService->disconnect();
+  qDebug() << "[Core] shutdown — disconnecting network";
+  if (networkService_)
+    networkService_->disconnect();
 
-    // Layer 1 unique_ptrs destroy in reverse declaration order
-    // (alarmDispatcher → serverStatusStore → deviceStore →
-    //  cameraStore → networkService → threadPool)
-    m_alarmDispatcher.reset();
-    m_serverStatusStore.reset();
-    m_deviceStore.reset();
-    m_cameraStore.reset();
-    m_networkService.reset();
-    m_threadPool.reset();
+  // Layer 1 unique_ptrs destroy in reverse declaration order
+  // (alarmDispatcher → serverStatusStore → deviceStore →
+  //  cameraStore → networkService → threadPool)
+  alarmDispatcher_.reset();
+  serverStatusStore_.reset();
+  deviceStore_.reset();
+  cameraStore_.reset();
+  networkService_.reset();
+  threadPool_.reset();
 
-    qDebug() << "[Core] shutdown complete";
+  qDebug() << "[Core] shutdown complete";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Step 1 — Layer 1: pure C++ objects, no Qt
 // ─────────────────────────────────────────────────────────────────────────────
 void Core::constructLayer1() {
-    // ThreadPool first — every other Layer-1 object may submit tasks to it
-    m_threadPool = std::make_unique<ThreadPool>(Config::THREAD_POOL_SIZE);
+  // ThreadPool first — every other Layer-1 object may submit tasks to it
+  threadPool_ = std::make_unique<ThreadPool>(Config::THREAD_POOL_SIZE);
 
-    // Network infrastructure
-    m_networkService = std::make_unique<NetworkService>();
+  // Network infrastructure
+  networkService_ = std::make_unique<NetworkService>();
 
-    // Domain stores — hold in-memory snapshots, parse on ThreadPool
-    m_cameraStore = std::make_unique<CameraStore>();
-    m_deviceStore = std::make_unique<DeviceStore>();
-    m_serverStatusStore = std::make_unique<ServerStatusStore>();
+  // Domain stores — hold in-memory snapshots, parse on ThreadPool
+  cameraStore_ = std::make_unique<CameraStore>();
+  deviceStore_ = std::make_unique<DeviceStore>();
+  serverStatusStore_ = std::make_unique<ServerStatusStore>();
 
-    // AlarmDispatcher needs ThreadPool reference — construct last in L1
-    m_alarmDispatcher = std::make_unique<AlarmDispatcher>(*m_threadPool);
+  // AlarmDispatcher needs ThreadPool reference — construct last in L1
+  alarmDispatcher_ = std::make_unique<AlarmDispatcher>(*threadPool_);
 
-    qDebug() << "[Core] Layer 1 constructed";
+  qDebug() << "[Core] Layer 1 constructed";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Step 2 — Layer 2: QObject adapters, parented to engine
 // ─────────────────────────────────────────────────────────────────────────────
 void Core::constructLayer2(QQmlEngine &engine) {
-    QObject *parent = &engine; // engine is QObject — all adapters become children
+  QObject *parent = &engine; // engine is QObject — all adapters become children
 
-    // NetworkBridge: type bridge, receives INetworkService* (non-owning)
-    m_networkBridge = new NetworkBridge(m_networkService.get(), parent);
+  // NetworkBridge: type bridge, receives INetworkService* (non-owning)
+  networkBridge_ = new NetworkBridge(networkService_.get(), parent);
 
-    // Auth controllers: receive NetworkBridge* + server address from Config
-    m_login = new LoginController(
-        m_networkBridge, QString::fromStdString(std::string(Config::SERVER_HOST)),
-        QString::fromStdString(std::string(Config::SERVER_PORT)), parent);
-    m_signup = new SignupController(
-        m_networkBridge, QString::fromStdString(std::string(Config::SERVER_HOST)),
-        QString::fromStdString(std::string(Config::SERVER_PORT)), parent);
+  // Auth controllers: receive NetworkBridge* + server address from Config
+  login_ = new LoginController(
+      networkBridge_, QString::fromStdString(std::string(Config::SERVER_HOST)),
+      QString::fromStdString(std::string(Config::SERVER_PORT)), parent);
+  signup_ = new SignupController(
+      networkBridge_, QString::fromStdString(std::string(Config::SERVER_HOST)),
+      QString::fromStdString(std::string(Config::SERVER_PORT)), parent);
 
-    // Models: pure QAbstractListModel views — no parsing, no JSON
-    m_cameraModel = new CameraModel(parent);
-    m_deviceModel = new DeviceModel(parent);
-    m_serverStatus = new ServerStatusModel(parent);
-    m_userModel = new UserModel(parent);
+  // Models: pure QAbstractListModel views — no parsing, no JSON
+  cameraModel_ = new CameraModel(parent);
+  deviceModel_ = new DeviceModel(parent);
+  serverStatus_ = new ServerStatusModel(parent);
+  userModel_ = new UserModel(parent);
 
-    // VideoManager: manages FFmpeg worker threads per RTSP URL
-    m_videoManager = new VideoManager(parent);
+  // VideoManager: manages FFmpeg worker threads per RTSP URL
+  videoManager_ = new VideoManager(parent);
 
-    // AlarmManager: receives pre-parsed AlarmEvent from Core wiring
-    m_alarmManager = new AlarmManager(m_alarmDispatcher.get(), parent);
+  // AlarmManager: receives pre-parsed AlarmEvent from Core wiring
+  alarmManager_ = new AlarmManager(alarmDispatcher_.get(), parent);
 
-    qDebug() << "[Core] Layer 2 constructed";
+  qDebug() << "[Core] Layer 2 constructed";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,146 +138,161 @@ void Core::constructLayer2(QQmlEngine &engine) {
 //        Lambdas that cross to the ThreadPool must capture by value only.
 // ─────────────────────────────────────────────────────────────────────────────
 void Core::wireSignals() {
-    qRegisterMetaType<SlotInfo>("SlotInfo");
-    qRegisterMetaType<QList<SlotInfo>>("QList<SlotInfo>");
+  qRegisterMetaType<SlotInfo>("SlotInfo");
+  qRegisterMetaType<QList<SlotInfo>>("QList<SlotInfo>");
 
-    // ── CAMERA (0x07) → CameraStore + DeviceStore on ThreadPool ──────────
-    //
-    // When:  Every CAMERA packet (login + 5 s interval).
-    // Why:   13 cameras × JSON parse must NOT block the GUI thread.
-    // How:   Lambda captured by Qt::DirectConnection (same GUI thread as
-    //        NetworkBridge emission). Immediately submits two ThreadPool
-    //        tasks — one per store. Each store's callback is posted back
-    //        to the GUI thread via QueuedConnection.
-    QObject::connect(
-        m_networkBridge, &NetworkBridge::cameraListReceived,
-        m_networkBridge, // context object for lifetime
-        [this](const QString &json) {
-            const std::string s = json.toStdString();
+  // ── CAMERA (0x07) → CameraStore + DeviceStore on ThreadPool ──────────
+  //
+  // When:  Every CAMERA packet (login + 5 s interval).
+  // Why:   13 cameras × JSON parse must NOT block the GUI thread.
+  // How:   Lambda captured by Qt::DirectConnection (same GUI thread as
+  //        NetworkBridge emission). Immediately submits two ThreadPool
+  //        tasks — one per store. Each store's callback is posted back
+  //        to the GUI thread via QueuedConnection.
+  QObject::connect(
+      networkBridge_, &NetworkBridge::cameraListReceived,
+      networkBridge_, // context object for lifetime
+      [this](const QString &json) {
+        const std::string s = json.toStdString();
 
-            // CameraStore parse → CameraModel update (GUI thread)
-            m_threadPool->submit([this, s] {
-                m_cameraStore->updateFromJson(
-                    s, [this](std::vector<CameraData> snap) {
-                        QMetaObject::invokeMethod(
-                            m_cameraModel,
-                            [this, snap = std::move(snap)]() mutable {
-                                m_cameraModel->onStoreUpdated(std::move(snap));
-                            },
-                            Qt::QueuedConnection);
-                    });
-            });
+        // CameraStore parse → CameraModel update (GUI thread)
+        threadPool_->submit([this, s] {
+          cameraStore_->updateFromJson(s, [this](std::vector<CameraData> snap) {
+            QMetaObject::invokeMethod(
+                cameraModel_,
+                [this, snap = std::move(snap)]() mutable {
+                  cameraModel_->onStoreUpdated(std::move(snap));
+                },
+                Qt::QueuedConnection);
+          });
+        });
 
-            // DeviceStore parse (SUB_PI filter) → DeviceModel update (GUI thread)
-            m_threadPool->submit([this, s] {
-                m_deviceStore->updateFromJson(
-                    s, [this](std::vector<DeviceData> snap) {
-                        QMetaObject::invokeMethod(
-                            m_deviceModel,
-                            [this, snap = std::move(snap)]() mutable {
-                                m_deviceModel->onStoreUpdated(std::move(snap));
-                            },
-                            Qt::QueuedConnection);
-                    });
-            });
-        },
-        Qt::DirectConnection);
-
-    // ── DEVICE (0x04) → ServerStatusStore on ThreadPool ──────────────────
-    //
-    // When:  Every DEVICE packet (5 s interval, server side).
-    // Why:   JSON with cpu/mem/temp arrays must not block GUI.
-    // How:   Same submit pattern as CAMERA above.
-    QObject::connect(
-        m_networkBridge, &NetworkBridge::deviceStatusReceived, m_networkBridge,
-        [this](const QString &json) {
-            const std::string s = json.toStdString();
-            m_threadPool->submit([this, s] {
-                m_serverStatusStore->updateFromJson(s, [this](ServerStatusData data) {
-                    QMetaObject::invokeMethod(
-                        m_serverStatus,
-                        [this, d = std::move(data)]() mutable {
-                            m_serverStatus->onStoreUpdated(std::move(d));
-                        },
-                        Qt::QueuedConnection);
-                });
-            });
-        },
-        Qt::DirectConnection);
-
-    // ── AI (0x06) → AlarmDispatcher (already submits to ThreadPool) ───────
-    //
-    // When:  AI event packet from server.
-    // Why:   AI JSON can be large and complex — never parse on GUI thread.
-    // How:   AlarmDispatcher::dispatch() submits to ThreadPool internally.
-    //        The callback posts the parsed AlarmEvent back to GUI thread.
-    QObject::connect(
-        m_networkBridge, &NetworkBridge::aiResultReceived, m_networkBridge,
-        [this](const QString &json) {
-            m_alarmDispatcher->dispatch(json.toStdString(), [this](AlarmEvent ev) {
+        // DeviceStore parse (Integrated) → DeviceModel update (GUI thread)
+        threadPool_->submit([this, s] {
+          deviceStore_->updateFromCameraJson(
+              s, [this](std::vector<DeviceIntegrated> snap) {
                 QMetaObject::invokeMethod(
-                    m_alarmManager,
-                    [this, ev = std::move(ev)]() {
-                        m_alarmManager->onAlarm(std::move(ev));
+                    deviceModel_,
+                    [this, snap = std::move(snap)]() mutable {
+                      deviceModel_->onStoreUpdated(std::move(snap));
                     },
                     Qt::QueuedConnection);
-            });
-        },
-        Qt::DirectConnection);
+              });
+        });
+      },
+      Qt::DirectConnection);
 
-    // ── CameraModel → VideoManager (URL synchronization) ─────────────────
-    //
-    // When:  CameraModel emits urlsUpdated after onStoreUpdated.
-    // Why:   VideoManager must create exactly one FFmpeg worker per URL.
-    //        CameraModel is the authoritative list after login.
-    // How:   Direct Qt signal→slot on GUI thread — no threading needed here.
-    QObject::connect(m_cameraModel, &CameraModel::slotsUpdated, m_videoManager,
-                     &VideoManager::registerSlots);
-    QObject::connect(m_cameraModel, &CameraModel::urlsUpdated, m_videoManager,
-                     &VideoManager::registerUrls);
+  // ── AVAILABLE (0x05) → DeviceStore on ThreadPool ──────────────────
+  //
+  // When:  Every AVAILABLE packet (5 s interval).
+  // Why:   Device status (cpu/mem/temp) update.
+  // How:   Redirected from ServerStatusStore to DeviceStore for IP-based
+  // integration.
+  QObject::connect(
+      networkBridge_, &NetworkBridge::deviceStatusReceived, networkBridge_,
+      [this](const QString &json) {
+        const std::string s = json.toStdString();
+        threadPool_->submit([this, s] {
+          // ── Integrated update: AVAILABLE info merged into DeviceStore ──
+          deviceStore_->updateFromAvailableJson(
+              s, [this](std::vector<DeviceIntegrated> snap) {
+                QMetaObject::invokeMethod(
+                    deviceModel_,
+                    [this, snap = std::move(snap)]() mutable {
+                      deviceModel_->onStoreUpdated(std::move(snap));
+                    },
+                    Qt::QueuedConnection);
+              });
 
-    // F-2: When a camera comes back online, restart its stream worker
-    QObject::connect(m_cameraModel, &CameraModel::cameraOnline, m_videoManager,
-                     &VideoManager::restartWorker);
+          // ── Legacy update for ServerStatusModel (Dashboard top info) ──
+          serverStatusStore_->updateFromJson(s, [this](ServerStatusData data) {
+            QMetaObject::invokeMethod(
+                serverStatus_,
+                [this, d = std::move(data)]() mutable {
+                  serverStatus_->onStoreUpdated(std::move(d));
+                },
+                Qt::QueuedConnection);
+          });
+        });
+      },
+      Qt::DirectConnection);
 
-    // ── Logout ──────────────────────────────────────────────────────────────
-    QObject::connect(m_login, &LoginController::logoutRequested, m_videoManager,
-                     &VideoManager::clearAll);
-    QObject::connect(m_login, &LoginController::logoutRequested, m_cameraModel,
-                     &CameraModel::clearAll);
+  // ── AI (0x06) → AlarmDispatcher (already submits to ThreadPool) ───────
+  //
+  // When:  AI event packet from server.
+  // Why:   AI JSON can be large and complex — never parse on GUI thread.
+  // How:   AlarmDispatcher::dispatch() submits to ThreadPool internally.
+  //        The callback posts the parsed AlarmEvent back to GUI thread.
+  QObject::connect(
+      networkBridge_, &NetworkBridge::aiResultReceived, networkBridge_,
+      [this](const QString &json) {
+        alarmDispatcher_->dispatch(json.toStdString(), [this](AlarmEvent ev) {
+          QMetaObject::invokeMethod(
+              alarmManager_,
+              [this, ev = std::move(ev)]() {
+                alarmManager_->onAlarm(std::move(ev));
+              },
+              Qt::QueuedConnection);
+        });
+      },
+      Qt::DirectConnection);
 
-    qDebug() << "[Core] signals wired";
+  // ── CameraModel → VideoManager (URL synchronization) ─────────────────
+  //
+  // When:  CameraModel emits urlsUpdated after onStoreUpdated.
+  // Why:   VideoManager must create exactly one FFmpeg worker per URL.
+  //        CameraModel is the authoritative list after login.
+  // How:   Direct Qt signal→slot on GUI thread — no threading needed here.
+  QObject::connect(cameraModel_, &CameraModel::slotsUpdated, videoManager_,
+                   &VideoManager::registerSlots);
+  QObject::connect(cameraModel_, &CameraModel::urlsUpdated, videoManager_,
+                   &VideoManager::registerUrls);
+
+  // F-2: When a camera comes back online, restart its stream worker
+  QObject::connect(cameraModel_, &CameraModel::cameraOnline, videoManager_,
+                   &VideoManager::restartWorker);
+
+  // ── Logout ──────────────────────────────────────────────────────────────
+  QObject::connect(login_, &LoginController::logoutRequested, videoManager_,
+                   &VideoManager::clearAll);
+  QObject::connect(login_, &LoginController::logoutRequested, cameraModel_,
+                   &CameraModel::clearAll);
+
+  qDebug() << "[Core] signals wired";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Step 4 — Register context properties
 // ─────────────────────────────────────────────────────────────────────────────
 void Core::registerContextProperties(QQmlEngine &engine) {
-    auto *ctx = engine.rootContext();
+  auto *ctx = engine.rootContext();
 
-    // QML name             C++ object
-    ctx->setContextProperty("networkBridge", m_networkBridge);
-    ctx->setContextProperty("loginController", m_login);
-    ctx->setContextProperty("signupController", m_signup);
-    ctx->setContextProperty("cameraModel", m_cameraModel);
-    ctx->setContextProperty("deviceModel", m_deviceModel);
-    ctx->setContextProperty("serverStatus", m_serverStatus);
-    ctx->setContextProperty("userModel", m_userModel);
-    ctx->setContextProperty("videoManager", m_videoManager);
-    ctx->setContextProperty("alarmManager", m_alarmManager);
+  // QML name             C++ object
+  ctx->setContextProperty("networkBridge", networkBridge_);
+  ctx->setContextProperty("loginController", login_);
+  ctx->setContextProperty("signupController", signup_);
+  ctx->setContextProperty("cameraModel", cameraModel_);
+  ctx->setContextProperty("deviceModel", deviceModel_);
+  ctx->setContextProperty("serverStatus", serverStatus_);
+  ctx->setContextProperty("userModel", userModel_);
+  ctx->setContextProperty("videoManager", videoManager_);
+  ctx->setContextProperty("alarmManager", alarmManager_);
 
-    // ── Test Data for UserModel ────────────────────────────────────────────
-    // TODO: Remove this test data when real user data comes from server
-    m_userModel->addUser("user001", QStringLiteral("홍길동"), "hong@example.com", "user");
-    m_userModel->addUser("user002", QStringLiteral("김철수"), "kim@example.com", "user");
-    m_userModel->addUser("admin001", QStringLiteral("관리자"), "admin@example.com", "admin");
-    m_userModel->setUserOnline("user001", true);
-    m_userModel->setUserOnline("user002", true);
-    m_userModel->setUserOnline("admin001", true);
-    m_userModel->updateActiveCameras("user001", 3);
-    m_userModel->updateActiveCameras("user002", 1);
-    m_userModel->updateActiveCameras("admin001", 0);
+  // ── Test Data for UserModel ────────────────────────────────────────────
+  // TODO: Remove this test data when real user data comes from server
+  userModel_->addUser("user001", QStringLiteral("홍길동"), "hong@example.com",
+                      "user");
+  userModel_->addUser("user002", QStringLiteral("김철수"), "kim@example.com",
+                      "user");
+  userModel_->addUser("admin001", QStringLiteral("관리자"), "admin@example.com",
+                      "admin");
+  userModel_->setUserOnline("user001", true);
+  userModel_->setUserOnline("user002", true);
+  userModel_->setUserOnline("admin001", true);
+  userModel_->updateActiveCameras("user001", 3);
+  userModel_->updateActiveCameras("user002", 1);
+  userModel_->updateActiveCameras("admin001", 0);
 
-    qDebug() << "[Core] context properties registered";
-    qDebug() << "[Core] test users added to UserModel";
+  qDebug() << "[Core] context properties registered";
+  qDebug() << "[Core] test users added to UserModel";
 }

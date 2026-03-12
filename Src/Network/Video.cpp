@@ -25,28 +25,28 @@ void Video::startStream(const std::string &url) {
 
   stopStream();
 
-  m_stopThread = false;
-  m_decodeThread = std::thread([this, url]() { decodeLoopFFmpeg(url); });
+  stopThread_ = false;
+  decodeThread_ = std::thread([this, url]() { decodeLoopFFmpeg(url); });
 }
 
 void Video::stopStream() {
-  m_stopThread = true;
-  if (m_decodeThread.joinable()) {
-    m_decodeThread.join();
+  stopThread_ = true;
+  if (decodeThread_.joinable()) {
+    decodeThread_.join();
   }
   cleanupFFmpeg();
 }
 
 void Video::decodeLoopFFmpeg(const std::string &url) {
   // Retry loop
-  while (!m_stopThread) {
+  while (!stopThread_) {
     bool ok = tryOnceFFmpeg(url);
-    if (m_stopThread)
+    if (stopThread_)
       break;
     if (!ok) {
       fprintf(stderr, "[Video] 연결 실패/끊김 — 3초 후 재시도: %s\n",
               url.c_str());
-      for (int i = 0; i < 30 && !m_stopThread; ++i)
+      for (int i = 0; i < 30 && !stopThread_; ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
@@ -67,20 +67,20 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
   av_log_set_level(AV_LOG_WARNING);
   avformat_network_init();
 
-  m_formatCtx = avformat_alloc_context();
-  if (!m_formatCtx) {
+  formatCtx_ = avformat_alloc_context();
+  if (!formatCtx_) {
     fprintf(stderr, "[Video] FFmpeg: 컨텍스트 할당 실패\n");
     return false;
   }
 
-  m_formatCtx->interrupt_callback.callback = [](void *ctx) -> int {
+  formatCtx_->interrupt_callback.callback = [](void *ctx) -> int {
     auto *stopFlag = static_cast<std::atomic<bool> *>(ctx);
     return (*stopFlag) ? 1 : 0;
   };
-  m_formatCtx->interrupt_callback.opaque = &m_stopThread;
+  formatCtx_->interrupt_callback.opaque = &stopThread_;
 
-  m_formatCtx->probesize = 5000000;
-  m_formatCtx->max_analyze_duration = 2000000;
+  formatCtx_->probesize = 5000000;
+  formatCtx_->max_analyze_duration = 2000000;
 
   av_dict_set(&options, "rtsp_transport", "udp", 0);
   av_dict_set(&options, "flags", "low_delay", 0);
@@ -91,48 +91,48 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
 
   fprintf(stderr, "[Video] 스트림 연결 시도: %s\n", url.c_str());
 
-  if (avformat_open_input(&m_formatCtx, url.c_str(), nullptr, &options) != 0) {
+  if (avformat_open_input(&formatCtx_, url.c_str(), nullptr, &options) != 0) {
     fprintf(stderr, "[Video] 입력 오픈 실패: %s\n", url.c_str());
     if (options)
       av_dict_free(&options);
-    avformat_free_context(m_formatCtx);
-    m_formatCtx = nullptr;
+    avformat_free_context(formatCtx_);
+    formatCtx_ = nullptr;
     return false;
   }
   if (options)
     av_dict_free(&options);
 
-  if (avformat_find_stream_info(m_formatCtx, nullptr) < 0)
+  if (avformat_find_stream_info(formatCtx_, nullptr) < 0)
     fprintf(stderr, "[Video] 스트림 정보 분석 미흡\n");
 
-  m_videoStreamIndex = -1;
-  for (unsigned i = 0; i < m_formatCtx->nb_streams; ++i) {
-    if (m_formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-      m_videoStreamIndex = i;
+  videoStreamIndex_ = -1;
+  for (unsigned i = 0; i < formatCtx_->nb_streams; ++i) {
+    if (formatCtx_->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+      videoStreamIndex_ = i;
       break;
     }
   }
-  if (m_videoStreamIndex == -1) {
+  if (videoStreamIndex_ == -1) {
     fprintf(stderr, "[Video] 비디오 스트림을 찾을 수 없음\n");
     cleanupFFmpeg();
     return false;
   }
 
   codec = avcodec_find_decoder(
-      m_formatCtx->streams[m_videoStreamIndex]->codecpar->codec_id);
-  m_codecCtx = avcodec_alloc_context3(codec);
+      formatCtx_->streams[videoStreamIndex_]->codecpar->codec_id);
+  codecCtx_ = avcodec_alloc_context3(codec);
   avcodec_parameters_to_context(
-      m_codecCtx, m_formatCtx->streams[m_videoStreamIndex]->codecpar);
+      codecCtx_, formatCtx_->streams[videoStreamIndex_]->codecpar);
 
-  if (m_codecCtx->width <= 0 || m_codecCtx->height <= 0) {
+  if (codecCtx_->width <= 0 || codecCtx_->height <= 0) {
     fprintf(stderr, "[Video] Resolution unknown - decoding as is\n");
   }
-  m_codecCtx->thread_count = 0;
-  m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
-  m_codecCtx->skip_loop_filter = AVDISCARD_ALL;
-  m_codecCtx->skip_frame = AVDISCARD_DEFAULT;
+  codecCtx_->thread_count = 0;
+  codecCtx_->flags |= AV_CODEC_FLAG_LOW_DELAY;
+  codecCtx_->skip_loop_filter = AVDISCARD_ALL;
+  codecCtx_->skip_frame = AVDISCARD_DEFAULT;
 
-  if (avcodec_open2(m_codecCtx, codec, nullptr) < 0) {
+  if (avcodec_open2(codecCtx_, codec, nullptr) < 0) {
     fprintf(stderr, "[Video] 코덱 오픈 실패\n");
     cleanupFFmpeg();
     return false;
@@ -147,14 +147,14 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
   int consecutiveErrors = 0;
   constexpr int kMaxErrors = 50; // ~0.5초 (10ms × 50)
 
-  while (!m_stopThread) {
-    int ret = av_read_frame(m_formatCtx, packet);
+  while (!stopThread_) {
+    int ret = av_read_frame(formatCtx_, packet);
     if (ret >= 0) {
       consecutiveErrors = 0;
-      if (packet->stream_index == m_videoStreamIndex) {
-        if (avcodec_send_packet(m_codecCtx, packet) == 0) {
+      if (packet->stream_index == videoStreamIndex_) {
+        if (avcodec_send_packet(codecCtx_, packet) == 0) {
           while (true) {
-            int recv = avcodec_receive_frame(m_codecCtx, frame);
+            int recv = avcodec_receive_frame(codecCtx_, frame);
             if (recv != 0)
               break;
 
@@ -180,7 +180,7 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
             int targetWidth = srcWidth;
             int targetHeight = srcHeight;
 
-            if (!m_swsCtx || width != srcWidth || height != srcHeight ||
+            if (!swsCtx_ || width != srcWidth || height != srcHeight ||
                 prevTargetWidth != targetWidth ||
                 prevTargetHeight != targetHeight) {
               width = srcWidth;
@@ -188,8 +188,8 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
               prevTargetWidth = targetWidth;
               prevTargetHeight = targetHeight;
 
-              if (m_swsCtx)
-                sws_freeContext(m_swsCtx);
+              if (swsCtx_)
+                sws_freeContext(swsCtx_);
 
               int numBytes = av_image_get_buffer_size(
                   AV_PIX_FMT_RGBA, targetWidth, targetHeight, 4);
@@ -198,14 +198,14 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
                                        ? Config::VIDEO_BUFFER_POOL_SIZE_4K
                                        : Config::VIDEO_BUFFER_POOL_SIZE_HD;
 
-              m_bufferPool.clear();
+              bufferPool_.clear();
               for (int i = 0; i < poolSize; ++i) {
                 auto buf = std::make_shared<std::vector<uint8_t>>(
                     numBytes + AV_INPUT_BUFFER_PADDING_SIZE);
-                m_bufferPool.push_back(buf);
+                bufferPool_.push_back(buf);
               }
 
-              m_swsCtx =
+              swsCtx_ =
                   sws_getContext(srcWidth, srcHeight,
                                  static_cast<AVPixelFormat>(frame->format),
                                  targetWidth, targetHeight, AV_PIX_FMT_RGBA,
@@ -213,7 +213,7 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
             }
 
             std::shared_ptr<std::vector<uint8_t>> targetBuffer = nullptr;
-            for (auto &buf : m_bufferPool) {
+            for (auto &buf : bufferPool_) {
               if (buf.use_count() == 1) {
                 targetBuffer = buf;
                 break;
@@ -226,7 +226,7 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
                                  targetBuffer->data(), AV_PIX_FMT_RGBA,
                                  targetWidth, targetHeight, 4);
 
-            sws_scale(m_swsCtx, (const uint8_t *const *)frame->data,
+            sws_scale(swsCtx_, (const uint8_t *const *)frame->data,
                       frame->linesize, 0, srcHeight, frameRGB->data,
                       frameRGB->linesize);
 
@@ -261,17 +261,17 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
 }
 
 void Video::cleanupFFmpeg() {
-  if (m_swsCtx) {
-    sws_freeContext(m_swsCtx);
-    m_swsCtx = nullptr;
+  if (swsCtx_) {
+    sws_freeContext(swsCtx_);
+    swsCtx_ = nullptr;
   }
-  if (m_codecCtx) {
-    avcodec_free_context(&m_codecCtx);
-    m_codecCtx = nullptr;
+  if (codecCtx_) {
+    avcodec_free_context(&codecCtx_);
+    codecCtx_ = nullptr;
   }
-  if (m_formatCtx) {
-    avformat_close_input(&m_formatCtx);
-    m_formatCtx = nullptr;
+  if (formatCtx_) {
+    avformat_close_input(&formatCtx_);
+    formatCtx_ = nullptr;
   }
-  m_videoStreamIndex = -1;
+  videoStreamIndex_ = -1;
 }

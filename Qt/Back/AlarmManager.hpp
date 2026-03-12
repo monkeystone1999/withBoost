@@ -27,5 +27,5 @@ signals:
   void alarmTriggered(QString title, QString detail, int severity);
 
 private:
-  AlarmDispatcher *m_dispatcher; // non-owning
+  AlarmDispatcher *dispatcher_; // non-owning
 };

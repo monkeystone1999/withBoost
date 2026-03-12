@@ -3,8 +3,8 @@
 #include <cstdio>
 
 NetworkService::NetworkService()
-    : m_manager(std::make_unique<SessionManager>()),
-      m_sessionName("Main") {}
+    : manager_(std::make_unique<SessionManager>()),
+      sessionName_("Main") {}
 
 NetworkService::~NetworkService() {
     disconnect();
@@ -14,8 +14,8 @@ void NetworkService::connect(const std::string &host,
                              const std::string &port,
                              NetworkCallbacks   cbs) {
     // Create (or recreate) the session
-    m_manager->AddSession(m_sessionName, host, port);
-    auto session = m_manager->GetSession(m_sessionName);
+    manager_->AddSession(sessionName_, host, port);
+    auto session = manager_->GetSession(sessionName_);
     if (!session) {
         fprintf(stderr, "[NetworkService] Failed to create session\n");
         return;
@@ -23,7 +23,7 @@ void NetworkService::connect(const std::string &host,
 
     // Wire all callbacks — pure std::string, no Qt
     session->onConnected = [this, cb = cbs.onConnected]() {
-        m_connected = true;
+        connected_ = true;
         if (cb) cb();
     };
 
@@ -55,18 +55,18 @@ void NetworkService::connect(const std::string &host,
 }
 
 void NetworkService::disconnect() {
-    m_connected = false;
-    m_manager->CloseAll();
+    connected_ = false;
+    manager_->CloseAll();
     // Recreate manager to reset io_context (joins io_thread cleanly)
-    m_manager = std::make_unique<SessionManager>();
+    manager_ = std::make_unique<SessionManager>();
 }
 
 void NetworkService::send(uint8_t messageType, const std::string &jsonBody) {
-    auto session = m_manager->GetSession(m_sessionName);
+    auto session = manager_->GetSession(sessionName_);
     if (!session) return;
     session->WriteRaw(static_cast<MessageType>(messageType), jsonBody);
 }
 
 bool NetworkService::isConnected() const {
-    return m_connected.load(std::memory_order_relaxed);
+    return connected_.load(std::memory_order_relaxed);
 }
