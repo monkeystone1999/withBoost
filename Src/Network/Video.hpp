@@ -42,6 +42,7 @@ private:
   AVFormatContext *formatCtx_ = nullptr;
   AVCodecContext *codecCtx_ = nullptr;
   struct SwsContext *swsCtx_ = nullptr;
+  AVBufferRef* hw_device_ctx = nullptr;
   int videoStreamIndex_ = -1;
 
   // Decode thread
