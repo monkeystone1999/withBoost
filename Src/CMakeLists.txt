@@ -2,7 +2,7 @@ find_package(nlohmann_json REQUIRED)
 find_package(boost_asio CONFIG REQUIRED)
 find_package(boost_system CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
-
+find_package(libyuv CONFIG REQUIRED)
 # Pure C++ 정적 라이브러리 — Qt 링크 없음
 add_library(AnoMapSTD STATIC
     Thread/ThreadPool.hpp
@@ -46,4 +46,5 @@ target_link_libraries(AnoMapSTD PUBLIC
     FFmpeg::avutil
     FFmpeg::swscale
     FFmpeg::swresample
+    yuv
 )

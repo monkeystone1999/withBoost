@@ -6,6 +6,7 @@
     "boost-asio",
     "boost-system",
     "openssl",
+    "libyuv",
     {
       "name": "ffmpeg",
       "features": [

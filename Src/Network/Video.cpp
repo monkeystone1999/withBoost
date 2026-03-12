@@ -2,66 +2,61 @@
 #include "../Config.hpp"
 #include <chrono>
 #include <cstdio>
+#include <libyuv.h> // 🚀 [추가] 구글 libyuv 초고속 변환 라이브러리
 
-static void ffmpeg_log_callback(void *, int level, const char *fmt,
-                                va_list vl) {
-  if (level > AV_LOG_WARNING)
-    return;
-  char buf[1024];
-  vsnprintf(buf, sizeof(buf), fmt, vl);
-  // 개행 제거 후 stderr 출력
-  int len = static_cast<int>(strlen(buf));
-  while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
-    buf[--len] = '\0';
-  if (len > 0)
-    fprintf(stderr, "[FFmpeg] %s\n", buf);
+static void ffmpeg_log_callback(void *, int level, const char *fmt, va_list vl) {
+    if (level > AV_LOG_WARNING)
+        return;
+    char buf[1024];
+    vsnprintf(buf, sizeof(buf), fmt, vl);
+    int len = static_cast<int>(strlen(buf));
+    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+        buf[--len] = '\0';
+    if (len > 0)
+        fprintf(stderr, "[FFmpeg] %s\n", buf);
 }
 
 Video::~Video() { stopStream(); }
 
 void Video::startStream(const std::string &url) {
-  if (url.empty())
-    return;
+    if (url.empty())
+        return;
 
-  stopStream();
-
-  stopThread_ = false;
-  decodeThread_ = std::thread([this, url]() { decodeLoopFFmpeg(url); });
+    stopStream();
+    stopThread_ = false;
+    decodeThread_ = std::thread([this, url]() { decodeLoopFFmpeg(url); });
 }
 
 void Video::stopStream() {
-  stopThread_ = true;
-  if (decodeThread_.joinable()) {
-    decodeThread_.join();
-  }
-  cleanupFFmpeg();
+    stopThread_ = true;
+    if (decodeThread_.joinable()) {
+        decodeThread_.join();
+    }
+    cleanupFFmpeg();
 }
 
 void Video::decodeLoopFFmpeg(const std::string &url) {
-  // Retry loop
-  while (!stopThread_) {
-    bool ok = tryOnceFFmpeg(url);
-    if (stopThread_)
-      break;
-    if (!ok) {
-      fprintf(stderr, "[Video] 연결 실패/끊김 — 3초 후 재시도: %s\n",
-              url.c_str());
-      for (int i = 0; i < 30 && !stopThread_; ++i)
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    while (!stopThread_) {
+        bool ok = tryOnceFFmpeg(url);
+        if (stopThread_)
+            break;
+        if (!ok) {
+            fprintf(stderr, "[Video] 연결 실패/끊김 — 3초 후 재시도: %s\n", url.c_str());
+            for (int i = 0; i < 30 && !stopThread_; ++i)
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
-  }
-  fprintf(stderr, "[Video] 디코딩 루프 종료\n");
+    fprintf(stderr, "[Video] 디코딩 루프 종료\n");
 }
 
 bool Video::tryOnceFFmpeg(const std::string &url) {
     AVFrame *frame = nullptr;
-    AVFrame *frameRGB = nullptr;
-    AVFrame *swFrame = av_frame_alloc(); // 🚀 HW 프레임을 다운로드할 임시 프레임 추가
+    AVFrame *swFrame = av_frame_alloc(); // 🚀 하드웨어 -> 시스템 메모리 다운로드용 임시 프레임
+    // 🚀 [삭제] libyuv는 직접 벡터에 쓰기 때문에 frameRGB가 필요 없습니다.
     AVPacket *packet = nullptr;
     AVDictionary *options = nullptr;
     const AVCodec *codec = nullptr;
     int width = 0, height = 0;
-    int prevTargetWidth = 0, prevTargetHeight = 0;
     bool success = true;
 
     av_log_set_callback(ffmpeg_log_callback);
@@ -125,11 +120,11 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
     avcodec_parameters_to_context(
         codecCtx_, formatCtx_->streams[videoStreamIndex_]->codecpar);
 
-    AVBufferRef* hwDeviceCtx = nullptr; // 🚀 올바른 위치: codecCtx_ 생성 직후 하드웨어 가속기 연결
+    AVBufferRef* hwDeviceCtx = nullptr;
     if (av_hwdevice_ctx_create(&hwDeviceCtx, AV_HWDEVICE_TYPE_D3D11VA, nullptr, nullptr, 0) >= 0) {
         fprintf(stderr, "[Video] 하드웨어 가속(D3D11VA) 초기화 성공\n");
-        codecCtx_->hw_device_ctx = av_buffer_ref(hwDeviceCtx); // 🚀 소유권 이전
-        av_buffer_unref(&hwDeviceCtx); // 🚀 안전하게 참조 카운트 감소
+        codecCtx_->hw_device_ctx = av_buffer_ref(hwDeviceCtx);
+        av_buffer_unref(&hwDeviceCtx);
     } else {
         fprintf(stderr, "[Video] 하드웨어 가속 초기화 실패, 순수 CPU 디코딩으로 진행\n");
     }
@@ -149,7 +144,6 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
     }
 
     frame = av_frame_alloc();
-    frameRGB = av_frame_alloc();
     packet = av_packet_alloc();
 
     fprintf(stderr, "[Video] 디코딩 시작\n");
@@ -168,13 +162,13 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
                         if (recv != 0)
                             break;
 
-                        AVFrame* targetFrame = frame; // 🚀 처리용 프레임 포인터 할당
+                        AVFrame* targetFrame = frame;
                         if (frame->format == AV_PIX_FMT_D3D11 || frame->format == AV_PIX_FMT_DXVA2_VLD) {
                             if (av_hwframe_transfer_data(swFrame, frame, 0) < 0) {
                                 fprintf(stderr, "[Video] HW -> CPU 프레임 전송 실패\n");
                                 continue;
                             }
-                            targetFrame = swFrame; // 🚀 시스템 메모리로 내려받은 프레임으로 대상 변경
+                            targetFrame = swFrame;
                         }
 
                         int srcWidth = targetFrame->width;
@@ -184,24 +178,16 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
 
                         int targetWidth = srcWidth;
                         int targetHeight = srcHeight;
+                        int numBytes = targetWidth * targetHeight * 4;
 
-                        if (!swsCtx_ || width != srcWidth || height != srcHeight ||
-                            prevTargetWidth != targetWidth ||
-                            prevTargetHeight != targetHeight) {
+                        const int poolSize = (targetWidth > 1920)
+                                                 ? Config::VIDEO_BUFFER_POOL_SIZE_4K
+                                                 : Config::VIDEO_BUFFER_POOL_SIZE_HD;
+
+                        // 해상도가 변경되었을 때만 버퍼 풀 초기화
+                        if (width != srcWidth || height != srcHeight) {
                             width = srcWidth;
                             height = srcHeight;
-                            prevTargetWidth = targetWidth;
-                            prevTargetHeight = targetHeight;
-
-                            if (swsCtx_)
-                                sws_freeContext(swsCtx_);
-
-                            int numBytes = av_image_get_buffer_size(
-                                AV_PIX_FMT_RGBA, targetWidth, targetHeight, 4);
-
-                            const int poolSize = (targetWidth > 1920)
-                                                     ? Config::VIDEO_BUFFER_POOL_SIZE_4K
-                                                     : Config::VIDEO_BUFFER_POOL_SIZE_HD;
 
                             bufferPool_.clear();
                             for (int i = 0; i < poolSize; ++i) {
@@ -209,8 +195,6 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
                                     numBytes + AV_INPUT_BUFFER_PADDING_SIZE);
                                 bufferPool_.push_back(buf);
                             }
-
-                            swsCtx_ = sws_getContext(srcWidth, srcHeight, static_cast<AVPixelFormat>(targetFrame->format), targetWidth, targetHeight, AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr); // 🚀 targetFrame의 포맷으로 SwsContext 갱신
                         }
 
                         std::shared_ptr<std::vector<uint8_t>> targetBuffer = nullptr;
@@ -223,12 +207,37 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
                         if (!targetBuffer)
                             continue;
 
-                        av_image_fill_arrays(frameRGB->data, frameRGB->linesize, targetBuffer->data(), AV_PIX_FMT_RGBA, targetWidth, targetHeight, 4);
+                        // =====================================================================
+                        // 🚀 [추가/수정] libyuv 초고속 색상 변환 (sws_scale 대체)
+                        // =====================================================================
+                        int ret_yuv = -1;
 
-                        sws_scale(swsCtx_, (const uint8_t *const *)targetFrame->data, targetFrame->linesize, 0, srcHeight, frameRGB->data, frameRGB->linesize); // 🚀 targetFrame 기반으로 스케일링 수행
+                        // 1. 하드웨어 가속(D3D11)을 거쳐 내려온 프레임은 일반적으로 NV12 포맷입니다.
+                        if (targetFrame->format == AV_PIX_FMT_NV12) {
+                            // libyuv의 ABGR 계열 함수는 메모리에 [R, G, B, A] 순서로 출력해 줍니다. (Qt 호환성)
+                            ret_yuv = libyuv::NV12ToABGR(
+                                targetFrame->data[0], targetFrame->linesize[0], // Y
+                                targetFrame->data[1], targetFrame->linesize[1], // UV
+                                targetBuffer->data(), targetWidth * 4,          // 출력 버퍼 및 Stride
+                                targetWidth, targetHeight
+                                );
+                        }
+                        // 2. 순수 CPU 소프트웨어 디코딩을 거친 프레임은 일반적으로 YUV420P(I420) 포맷입니다.
+                        else if (targetFrame->format == AV_PIX_FMT_YUV420P || targetFrame->format == AV_PIX_FMT_YUVJ420P) {
+                            ret_yuv = libyuv::I420ToABGR(
+                                targetFrame->data[0], targetFrame->linesize[0], // Y
+                                targetFrame->data[1], targetFrame->linesize[1], // U
+                                targetFrame->data[2], targetFrame->linesize[2], // V
+                                targetBuffer->data(), targetWidth * 4,
+                                targetWidth, targetHeight
+                                );
+                        } else {
+                            fprintf(stderr, "[Video] 경고: libyuv 지원 범위를 벗어난 포맷 (%d) - 프레임 스킵\n", targetFrame->format);
+                        }
 
-                        if (onFrameReady) {
-                            onFrameReady(targetBuffer, targetWidth, targetHeight, frameRGB->linesize[0]);
+                        if (onFrameReady && ret_yuv == 0) {
+                            // 성공적으로 변환되었을 경우 QML 렌더러로 데이터 포인터 전송
+                            onFrameReady(targetBuffer, targetWidth, targetHeight, targetWidth * 4);
                         }
                     }
                 }
@@ -247,29 +256,24 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
 
     if (packet)
         av_packet_free(&packet);
-    if (frameRGB)
-        av_frame_free(&frameRGB);
     if (frame)
         av_frame_free(&frame);
     if (swFrame)
-        av_frame_free(&swFrame); // 🚀 사용이 끝난 임시 프레임 메모리 정상 해제
+        av_frame_free(&swFrame);
 
     cleanupFFmpeg();
     return success;
 }
 
 void Video::cleanupFFmpeg() {
-  if (swsCtx_) {
-    sws_freeContext(swsCtx_);
-    swsCtx_ = nullptr;
-  }
-  if (codecCtx_) {
-    avcodec_free_context(&codecCtx_);
-    codecCtx_ = nullptr;
-  }
-  if (formatCtx_) {
-    avformat_close_input(&formatCtx_);
-    formatCtx_ = nullptr;
-  }
-  videoStreamIndex_ = -1;
+    // 🚀 [삭제] swsCtx_ 관련 해제 코드 완전히 삭제
+    if (codecCtx_) {
+        avcodec_free_context(&codecCtx_);
+        codecCtx_ = nullptr;
+    }
+    if (formatCtx_) {
+        avformat_close_input(&formatCtx_);
+        formatCtx_ = nullptr;
+    }
+    videoStreamIndex_ = -1;
 }
