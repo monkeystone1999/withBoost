@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS
-    Quick Svg Core Qml QuickControls2 Network
+    Quick Svg Core Qml QuickControls2 Network ShaderTools
 )
 
 # ===== FFmpeg =====

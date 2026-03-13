@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../Src/Domain/Device.hpp"
 #include <QAbstractListModel>
 #include <QHash>

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "IStore.hpp"
 #include <deque>
 #include <mutex>

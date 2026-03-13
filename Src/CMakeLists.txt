@@ -31,6 +31,11 @@ add_library(AnoMapSTD STATIC
 target_include_directories(AnoMapSTD PRIVATE
     ${FFmpeg_INCLUDE_DIR}
 )
+
+target_compile_options(AnoMapSTD PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
+
 target_include_directories(AnoMapSTD PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )

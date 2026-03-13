@@ -22,6 +22,11 @@ qt_add_library(BackEnd STATIC
     UserModel.hpp
 )
 
+
+target_compile_options(BackEnd PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
+
 target_link_libraries(BackEnd PUBLIC
     Qt6::Core
     Qt6::Gui

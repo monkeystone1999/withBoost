@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../Src/Domain/User.hpp"
 #include <QAbstractListModel>
 #include <QDateTime>

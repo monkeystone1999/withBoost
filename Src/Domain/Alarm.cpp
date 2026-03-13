@@ -1,4 +1,4 @@
-#include "Alarm.hpp"
+﻿#include "Alarm.hpp"
 #include <nlohmann/json.hpp>
 
 void AlarmDispatcher::dispatch(const std::string &json, Callback cb) {

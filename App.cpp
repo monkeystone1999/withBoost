@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 //  App.cpp — Qt engine configuration only
 //
 //  RULE: This file must not construct any business objects,

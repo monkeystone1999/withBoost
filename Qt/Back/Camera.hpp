@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../Src/Domain/Camera.hpp"
 #include <QAbstractListModel>
 #include <QList>

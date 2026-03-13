@@ -1,4 +1,4 @@
-#include "AlarmManager.hpp"
+﻿#include "AlarmManager.hpp"
 #include <QDebug>
 
 AlarmManager::AlarmManager(AlarmDispatcher *dispatcher, QObject *parent)

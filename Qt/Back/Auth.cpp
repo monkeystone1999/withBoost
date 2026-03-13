@@ -1,4 +1,4 @@
-#include "Auth.hpp"
+﻿#include "Auth.hpp"
 #include <QDebug>
 
 AuthController::AuthController(NetworkBridge *bridge, const QString &host,

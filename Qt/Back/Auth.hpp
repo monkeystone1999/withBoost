@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "NetworkBridge.hpp"
 #include <QObject>
 #include <QString>

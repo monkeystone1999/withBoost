@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../Src/Domain/ServerStatus.hpp"
 #include <QList>
 #include <QObject>

@@ -1,4 +1,4 @@
-#include "Camera.hpp"
+﻿#include "Camera.hpp"
 #include <nlohmann/json.hpp>
 
 void CameraStore::updateFromJson(const std::string &json, Callback cb) {

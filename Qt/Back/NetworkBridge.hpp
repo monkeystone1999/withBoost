@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../Src/Network/INetworkService.hpp"
 #include <QObject>
 #include <QString>

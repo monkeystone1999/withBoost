@@ -1,401 +1,84 @@
-# 🔴 DeviceModel TypeError 완전 해결 가이드
-
-**작성일**: 2026-03-12  
-**프로젝트**: D:\final\Assembly\withBoost  
-**오류**: DeviceModel 함수 누락 + CMakeLists 미등록
-
----
-
-## 📋 발생한 오류
-
-```
-TypeError: Property 'hasMotor' of object DeviceModel is not a function
-TypeError: Property 'hasIr' of object DeviceModel is not a function
-TypeError: Property 'hasHeater' of object DeviceModel is not a function
-DeviceControlPanel is not a type
-```
-
----
-
-## 🎯 현재 구조 분석
-
-### DashboardPage.qml (라인 127-145)
-
-```qml
-DeviceControlBar {
-    id: controlBar
-    visible: false
-    z: 300
-
-    // ❌ 이 함수들이 DeviceModel에 없음!
-    deviceIp: typeof deviceModel !== "undefined" ? deviceModel.deviceIp(root.activeCtrlUrl) : ""
-    hasMotor: typeof deviceModel !== "undefined" ? deviceModel.hasMotor(root.activeCtrlUrl) : false
-    hasIr: typeof deviceModel !== "undefined" ? deviceModel.hasIr(root.activeCtrlUrl) : false
-    hasHeater: typeof deviceModel !== "undefined" ? deviceModel.hasHeater(root.activeCtrlUrl) : false
-    
-    // root.activeCtrlUrl = "rtsp://192.168.0.17:554/..."
-}
-```
-
-### DashboardLayout.qml (라인 57-59)
-
-```qml
-CameraCard {
-    // ...
-    showActionIcon: typeof deviceModel !== "undefined" && deviceModel.hasDevice(model.rtspUrl)
-                                                          ^^^^^^^^^^^^^^^^ 이것도 없음!
-}
-```
-
-### 문제점
-
-**DeviceModel은 IP 기반 조회만 지원**:
-```cpp
-// 현재 DeviceModel.hpp
-Q_INVOKABLE bool hasDevice(const QString &ip) const;
-Q_INVOKABLE QString rtspUrl(const QString &ip) const;
-Q_INVOKABLE double cpu(const QString &ip) const;
-```
-
-**QML은 rtspUrl 기반 조회 필요**:
-```qml
-deviceModel.hasMotor("rtsp://192.168.0.17:554/...")
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rtspUrl
-```
-
----
-
-## ⚡ 해결 방안
-
-### 수정 1: Device.hpp
-
-**파일**: `D:\final\Assembly\withBoost\Qt\Back\Device.hpp`
-
-**추가할 위치**: Q_INVOKABLE 섹션 (기존 함수들 아래)
-
-```cpp
-class DeviceModel : public QAbstractListModel {
-  Q_OBJECT
-public:
-  // ... 기존 코드 ...
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // ✅ IP 기반 조회 (기존)
-  // ══════════════════════════════════════════════════════════════════════════
-  Q_INVOKABLE bool hasDevice(const QString &ip) const;
-  Q_INVOKABLE QString rtspUrl(const QString &ip) const;
-  Q_INVOKABLE double cpu(const QString &ip) const;
-  Q_INVOKABLE double memory(const QString &ip) const;
-  Q_INVOKABLE double temp(const QString &ip) const;
-  Q_INVOKABLE QVariantList getHistory(const QString &ip) const;
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // ✅ rtspUrl 기반 조회 (추가)
-  //
-  // DashboardPage, CameraSplitLayout에서 사용:
-  //   deviceModel.hasMotor(root.activeCtrlUrl)
-  //   where activeCtrlUrl = "rtsp://admin@192.168.0.17:554/..."
-  // ══════════════════════════════════════════════════════════════════════════
-  Q_INVOKABLE QString deviceIp(const QString &rtspUrl) const;
-  Q_INVOKABLE bool hasMotor(const QString &rtspUrl) const;
-  Q_INVOKABLE bool hasIr(const QString &rtspUrl) const;
-  Q_INVOKABLE bool hasHeater(const QString &rtspUrl) const;
-  Q_INVOKABLE bool hasDevice(const QString &rtspUrl) const;  // ✅ 오버로드
-
-public slots:
-  void onStoreUpdated(std::vector<DeviceIntegrated> snapshot);
-
-private:
-  int findIndexByIp(const QString &ip) const;
-  int findIndexByRtspUrl(const QString &rtspUrl) const;  // ✅ 추가
-
-  QList<DeviceEntry> devices_;
-  QHash<QString, int> byIp_;
-};
-```
-
----
-
-### 수정 2: Device.cpp
-
-**파일**: `D:\final\Assembly\withBoost\Qt\Back\Device.cpp`
-
-**추가할 위치**: 파일 끝 (getHistory 함수 아래)
-
-```cpp
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ rtspUrl 기반 조회 함수 구현
-// ══════════════════════════════════════════════════════════════════════════════
-
-// rtspUrl → row index 조회
-int DeviceModel::findIndexByRtspUrl(const QString &rtspUrl) const {
-  for (int i = 0; i < devices_.size(); ++i) {
-    if (devices_[i].rtspUrl == rtspUrl) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-// rtspUrl → IP 변환
-QString DeviceModel::deviceIp(const QString &rtspUrl) const {
-  int idx = findIndexByRtspUrl(rtspUrl);
-  if (idx < 0)
-    return QString();
-  return devices_[idx].ip;
-}
-
-// hasMotor 조회 (rtspUrl 기반)
-bool DeviceModel::hasMotor(const QString &rtspUrl) const {
-  int idx = findIndexByRtspUrl(rtspUrl);
-  if (idx < 0)
-    return false;  // device 없으면 false (컨트롤 숨김)
-  return devices_[idx].hasMotor;
-}
-
-// hasIr 조회 (rtspUrl 기반)
-bool DeviceModel::hasIr(const QString &rtspUrl) const {
-  int idx = findIndexByRtspUrl(rtspUrl);
-  if (idx < 0)
-    return false;
-  return devices_[idx].hasIr;
-}
-
-// hasHeater 조회 (rtspUrl 기반)
-bool DeviceModel::hasHeater(const QString &rtspUrl) const {
-  int idx = findIndexByRtspUrl(rtspUrl);
-  if (idx < 0)
-    return false;
-  return devices_[idx].hasHeater;
-}
-
-// hasDevice 조회 (rtspUrl 기반) - 오버로드
-bool DeviceModel::hasDevice(const QString &rtspUrl) const {
-  return findIndexByRtspUrl(rtspUrl) >= 0;
-}
-```
-
----
-
-### 수정 3: CMakeLists.txt
-
-**파일**: `D:\final\Assembly\withBoost\Qt\Front\CMakeLists.txt`
-
-**찾을 코드** (라인 30-35 근처):
-```cmake
-Component/device/DeviceControlBar.qml
-Component/device/DeviceBadge.qml
-Component/user/UserCard.qml
-```
-
-**변경 후**:
-```cmake
-Component/device/DeviceControlBar.qml
-Component/device/DeviceBadge.qml
-Component/device/DeviceControlPanel.qml  # ✅ 이 줄 추가!
-Component/user/UserCard.qml
-```
-
----
-
-## 🎯 DashboardLayout에 Device Control 이미 구현됨!
-
-### DashboardPage.qml 구조 (이미 완벽함!)
-
-```qml
-DashboardPage {
-    // 1. CameraCard들을 표시하는 Grid
-    DashboardLayout {
-        model: cameraModel
-        
-        CameraCard {
-            // Device 있으면 ⚙ 아이콘 표시
-            showActionIcon: deviceModel.hasDevice(model.rtspUrl)
-            
-            // 클릭 시 Device Control Bar 표시
-            onTapped: toggleControlBar()
-            onActionIconTapped: toggleControlBar()
-        }
-    }
-    
-    // 2. Device Control Bar (이미 있음!)
-    DeviceControlBar {
-        visible: root.activeCtrlUrl !== ""
-        
-        // ✅ 이 속성들만 채워주면 끝!
-        deviceIp: deviceModel.deviceIp(root.activeCtrlUrl)
-        hasMotor: deviceModel.hasMotor(root.activeCtrlUrl)
-        hasIr: deviceModel.hasIr(root.activeCtrlUrl)
-        hasHeater: deviceModel.hasHeater(root.activeCtrlUrl)
-        
-        onSendDeviceCmd: (ip, motor, ir, heater) => {
-            deviceModel.sendDeviceCmd(ip, motor, ir, heater)
-        }
-    }
-}
-```
-
-### 작동 방식
-
-1. **CameraCard 클릭**
-   ```qml
-   CameraCard.onTapped → toggleControlBar()
-   → root.activeCtrlUrl = model.rtspUrl
-   → controlBar.visible = true
-   ```
-
-2. **DeviceControlBar 표시**
-   ```qml
-   controlBar.deviceIp = deviceModel.deviceIp("rtsp://192.168.0.17:554/...")
-   → 내부적으로 rtspUrl → IP 변환
-   → "192.168.0.17" 반환
-   ```
-
-3. **Motor/IR/Heater 버튼 클릭**
-   ```qml
-   controlBar.onSendDeviceCmd("192.168.0.17", "up", "", "")
-   → deviceModel.sendDeviceCmd() 호출
-   → NetworkBridge로 패킷 전송
-   ```
-
----
-
-## 📋 적용 순서
-
-### Step 1: Device.hpp 수정 (2분)
-
-1. 파일 백업:
-   ```bash
-   copy Qt\Back\Device.hpp Qt\Back\Device.hpp.backup
-   ```
-
-2. Q_INVOKABLE 섹션에 5개 함수 선언 추가:
-   - `deviceIp(rtspUrl)`
-   - `hasMotor(rtspUrl)`
-   - `hasIr(rtspUrl)`
-   - `hasHeater(rtspUrl)`
-   - `hasDevice(rtspUrl)` (오버로드)
-
-3. private 섹션에 helper 함수 추가:
-   - `findIndexByRtspUrl(rtspUrl)`
-
-### Step 2: Device.cpp 수정 (3분)
-
-1. 파일 백업:
-   ```bash
-   copy Qt\Back\Device.cpp Qt\Back\Device.cpp.backup
-   ```
-
-2. 파일 끝에 6개 함수 구현 추가:
-   - `findIndexByRtspUrl()`
-   - `deviceIp()`
-   - `hasMotor()`
-   - `hasIr()`
-   - `hasHeater()`
-   - `hasDevice()` 오버로드
-
-### Step 3: CMakeLists.txt 수정 (1분)
-
-1. 파일 백업:
-   ```bash
-   copy Qt\Front\CMakeLists.txt Qt\Front\CMakeLists.txt.backup
-   ```
-
-2. QML_FILES 목록에 한 줄 추가:
-   ```cmake
-   Component/device/DeviceControlPanel.qml
-   ```
-
-### Step 4: 재빌드 (5분)
-
-```bash
-cd D:\final\Assembly\withBoost\build
-cmake ..
-cmake --build . --config Release
-```
-
----
-
-## ✅ 검증
-
-### 실행 후 확인
-
-#### 1. TypeError 제거
-- [ ] ❌ `hasMotor is not a function` → 사라짐
-- [ ] ❌ `hasIr is not a function` → 사라짐
-- [ ] ❌ `hasHeater is not a function` → 사라짐
-- [ ] ❌ `DeviceControlPanel is not a type` → 사라짐
-
-#### 2. DashboardPage Device Control
-- [ ] ✅ CameraCard에 ⚙ 아이콘 표시 (device 있는 카메라만)
-- [ ] ✅ 카드 클릭 시 DeviceControlBar 표시
-- [ ] ✅ Motor 버튼 (hasMotor true일 때만)
-- [ ] ✅ IR 스위치 (hasIr true일 때만)
-- [ ] ✅ Heater 스위치 (hasHeater true일 때만)
-
-#### 3. CameraSplitLayout Device Control
-- [ ] ✅ AI/Device 페이지에서도 동일하게 작동
-
-#### 4. Network 패킷 전송
-- [ ] ✅ Motor 버튼 클릭 → `sendDeviceCmd(ip, "up", "", "")` 호출
-- [ ] ✅ IR ON 클릭 → `sendDeviceCmd(ip, "", "on", "")` 호출
-- [ ] ✅ Heater OFF 클릭 → `sendDeviceCmd(ip, "", "", "off")` 호출
-
----
-
-## 🎉 예상 결과
-
-### 수정 완료 후
-
-1. ✅ **모든 TypeError 제거**
-   - hasMotor, hasIr, hasHeater 함수 정상 작동
-
-2. ✅ **DashboardPage Device Control 완벽 작동**
-   - ⚙ 아이콘 자동 표시/숨김
-   - DeviceControlBar 팝업
-   - Motor/IR/Heater 컨트롤 정상 작동
-
-3. ✅ **AI/Device 페이지도 동일하게 작동**
-   - CameraSplitLayout의 Device Controls 정상
-
-4. ✅ **Network 패킷 전송 유지**
-   - 기존 sendDeviceCmd 방식 그대로 사용
-   - DeviceModel → NetworkBridge → 서버
-
----
-
-## 📊 구조 다이어그램
-
-```
-[사용자가 CameraCard 클릭]
-         ↓
-[DashboardLayout.toggleControlBar()]
-         ↓
-[root.activeCtrlUrl = "rtsp://192.168.0.17:554/..."]
-         ↓
-[DeviceControlBar.visible = true]
-         ↓
-[deviceModel.deviceIp(rtspUrl)]
-         ↓
-[findIndexByRtspUrl(rtspUrl) → idx]
-         ↓
-[devices_[idx].ip → "192.168.0.17"]
-         ↓
-[DeviceControlBar 표시 (IP, Motor/IR/Heater 버튼)]
-         ↓
-[사용자가 Motor ↑ 클릭]
-         ↓
-[onSendDeviceCmd("192.168.0.17", "up", "", "")]
-         ↓
-[deviceModel.sendDeviceCmd(...)]
-         ↓
-[NetworkBridge.sendDevice(...)]
-         ↓
-[서버로 패킷 전송]
-```
-
----
-
-**총 수정 시간**: 10분  
-**성공률**: 100% ✅  
-**핵심**: rtspUrl 기반 조회 함수 추가로 모든 Device Control 활성화!
+이 문서가 내 프로젝트에 명확히 접합이 되는지 확인하고 프로젝트 파일별 명확히 뭘 해야할지를 명시된 요구사항 보고서를 만들어
+
+1. 프로젝트 목표 (Objective)
+
+FFmpeg의 하드웨어 디코딩(NV12) 결과물을 CPU 연산(libyuv, sws_scale) 없이 순수 YUV 포맷 그대로 GPU 메모리에 업로드하고, Qt 6 RHI 기반의 **커스텀 셰이더(Fragment Shader)**를 통해 렌더링 시점에 즉시 RGB로 변환하여 화면에 출력한다. (목표 CPU 점유율: 5% 미만)
+
+2. 단계별 핵심 요구사항 (Core Requirements)
+
+Phase 1: 비디오 데이터 공급부 수정 (Video.cpp)
+
+요구사항 1-1. 변환 로직의 완전한 제거
+
+기존에 사용하던 sws_scale 또는 libyuv 라이브러리 의존성과 관련 코드를 전면 삭제한다.
+
+요구사항 1-2. NV12 Raw 데이터 추출 및 전달
+
+GPU에서 다운로드한 swFrame (포맷: AV_PIX_FMT_NV12)의 Y 평면(Plane)과 UV 평면 데이터를 가공 없이 연속된 하나의 std::vector<uint8_t> 버퍼에 복사(Memcpy)한다.
+
+onFrameReady 콜백을 통해 프레임 데이터 포인터, 해상도(width, height), 그리고 각 평면의 Stride(행의 바이트 길이) 정보를 함께 Qt 프론트엔드로 전달한다.
+
+Phase 2: RHI 다중 텍스처 업로드 (VideoFrameTexture)
+
+요구사항 2-1. 단일 텍스처에서 다중 텍스처로 분리
+
+기존의 단일 QRhiTexture* rhiTex_ 구조를 버리고, 포맷에 맞게 텍스처를 분리한다.
+
+NV12 지원 시: QRhiTexture* texY_ (포맷: QRhiTexture::R8), QRhiTexture* texUV_ (포맷: QRhiTexture::RG8) 총 2개 생성.
+
+요구사항 2-2. 평면별(Plane) 독립 업로드 구현
+
+commitTextureOperations 함수 내부에서 넘겨받은 원시 버퍼의 오프셋(Offset)을 계산하여, Y 데이터는 texY_에, UV 데이터는 texUV_에 각각 독립적으로 uploadTexture를 수행한다.
+
+Phase 3: Qt 6 Scene Graph 커스텀 셰이더 구축 (신규 개발)
+
+요구사항 3-1. 커스텀 QSGMaterial 클래스 개발
+
+기본 제공되는 QSGImageNode를 폐기하고, 2개(또는 3개)의 텍스처 바인딩(Binding)을 지원하는 나만의 C++ 재질(Material) 클래스를 상속 및 구현한다.
+
+요구사항 3-2. 커스텀 QSGGeometryNode 생성
+
+렌더링될 사각형(Quad) 정점(Vertex)을 정의하고, 위에서 만든 커스텀 Material을 씌우는 노드 클래스를 작성한다.
+
+VideoSurfaceItem::updatePaintNode가 이 커스텀 노드를 반환하도록 수정한다.
+
+요구사항 3-3. 픽셀 셰이더(Fragment Shader) 작성 및 빌드
+
+GLSL 또는 HLSL 문법을 사용하여, 샘플링된 Y값과 UV값을 수학적 변환 매트릭스(BT.601 또는 BT.709)를 통해 RGB로 변환하는 .frag 파일을 작성한다.
+
+Qt 6의 Shader Tools (qsb)를 이용하여 셰이더 소스를 크로스 플랫폼에서 돌아가는 .qsb 파일로 컴파일한다.
+
+3. 핵심 검색/학습 키워드 (Keywords for Research)
+
+성공적인 개발을 위해 구글링 및 Qt 공식 문서에서 중점적으로 파고들어야 할 핵심 키워인인 목록 및 조건입니다.
+
+FFmpeg 으로부터 받는 자동으로 설정되는 값들을 최대한 활용할 것 
+하드코딩방식은 최대한 지양하며 필요시에 함수로 따로 빼내서 코드 리팩토링
+해당 Decoding 을 하고 난뒤에 QML 및 Qt class 들이 제대로 받을 수 있는지 타입 및 호환성 확인
+이미 만들어져있는 shaders 들의 정보가 현 프로젝트에 적합한지 확인
+CMakeLists.txt 에서 제대로 찾고 있는지 확인
+Buil 는 절대 금물 하지만 Debugging message 를 최대한 넣어 문제 개선에 일조
+조조
+🔑 비디오 디코딩 & 데이터 구조
+
+FFmpeg AV_PIX_FMT_NV12 data layout (NV12 메모리 구조 이해)
+
+YUV to RGB Conversion Matrix (BT.601 / BT.709 수학적 변환 공식)
+
+🔑 Qt 6 Scene Graph (가장 중요)
+
+Qt 6 Custom QSGMaterial (커스텀 재질 생성 기본 튜토리얼)
+
+QSGMaterialShader (C++ 코드와 셰이더 변수를 연결하는 클래스)
+
+QSGGeometryNode (화면에 사각형을 그리기 위한 기하 구조 노드)
+
+Qt6 updatePaintNode custom material example
+
+🔑 Qt 6 RHI & 셰이더 프로그래밍
+
+QRhiTexture::R8 / QRhiTexture::RG8 (Y, UV 포맷용 1채널, 2채널 텍스처 포맷)
+
+Qt Shader Tools (qsb) (Qt 6 환경에서의 셰이더 빌드 시스템)
+
+Vulkan GLSL Sampler2D binding (셰이더 코드 내에서 여러 개의 텍스처를 받는 방법)

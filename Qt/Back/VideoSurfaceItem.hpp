@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "VideoFrameTexture.hpp"
 #include "VideoStream.hpp"
@@ -7,6 +7,7 @@
 #include <QQuickWindow>
 #include <QRectF>
 #include <QSGImageNode>
+#include <QSGTexture>
 #include <QTimer>
 
 // ── VIDEO_STREAMING_SPEC: Pull 기반 렌더링 ──────────────────────────────────

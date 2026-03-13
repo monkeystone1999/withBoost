@@ -1,4 +1,4 @@
-#include "Device.hpp"
+﻿#include "Device.hpp"
 #include <algorithm>
 #include <chrono>
 #include <nlohmann/json.hpp>

@@ -1,4 +1,4 @@
-#include "NetworkBridge.hpp"
+﻿#include "NetworkBridge.hpp"
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>

@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 //  Core.cpp — Application orchestrator implementation
 //
 //  Construction order (strict — do not reorder):

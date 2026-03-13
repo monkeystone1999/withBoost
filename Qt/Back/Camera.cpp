@@ -1,4 +1,4 @@
-#include "Camera.hpp"
+﻿#include "Camera.hpp"
 #include "../../Src/Config.hpp"
 #include <QHash>
 #include <QString>

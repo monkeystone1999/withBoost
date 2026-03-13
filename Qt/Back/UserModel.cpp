@@ -1,4 +1,4 @@
-#include "UserModel.hpp"
+﻿#include "UserModel.hpp"
 
 UserModel::UserModel(QObject *parent) : QAbstractListModel(parent) {}
 

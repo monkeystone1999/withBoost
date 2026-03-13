@@ -1,4 +1,4 @@
-#include "Device.hpp"
+﻿#include "Device.hpp"
 #include <QDateTime>
 
 DeviceModel::DeviceModel(QObject *parent) : QAbstractListModel(parent) {}

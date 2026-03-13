@@ -1,4 +1,4 @@
-#include "ServerStatus.hpp"
+﻿#include "ServerStatus.hpp"
 #include <nlohmann/json.hpp>
 
 void ServerStatusStore::updateFromJson(const std::string &json, Callback cb) {
