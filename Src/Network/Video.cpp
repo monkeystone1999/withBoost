@@ -60,8 +60,12 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
   avformat_network_init();
 
   formatCtx_ = avformat_alloc_context();
+  // Real-time low-latency options
   av_dict_set(&options, "rtsp_transport", "udp", 0);
   av_dict_set(&options, "stimeout", "5000000", 0);
+  // nobuffer/low_delay를 제거: UDP 패킷손실 시 CABAC 소스 오염 방지
+  av_dict_set(&options, "analyzeduration", "2000000", 0);
+  av_dict_set(&options, "probesize", "1000000", 0);
 
   if (avformat_open_input(&formatCtx_, url.c_str(), nullptr, &options) != 0) {
     av_frame_free(&frame);
@@ -71,6 +75,8 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
       av_dict_free(&options);
     return false;
   }
+
+  formatCtx_->max_delay = 0; // 지연 없이 즉시 패킷 전달
 
   if (avformat_find_stream_info(formatCtx_, nullptr) < 0) {
     cleanupFFmpeg();
@@ -102,6 +108,7 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
     av_buffer_unref(&hwDeviceCtx);
   }
 
+  // D3D11VA: 특별한 코덱 플래그 없이 디폴트로 사용
   codecCtx_->thread_count = 0;
   if (avcodec_open2(codecCtx_, codec, nullptr) < 0) {
     cleanupFFmpeg();
@@ -112,54 +119,43 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
     if (av_read_frame(formatCtx_, packet) < 0)
       break;
     if (packet->stream_index == videoStreamIndex_) {
-      if (avcodec_send_packet(codecCtx_, packet) == 0) {
-        while (avcodec_receive_frame(codecCtx_, frame) == 0) {
-          AVFrame *targetFrame = frame;
-          if (frame->format == AV_PIX_FMT_D3D11) {
-            if (av_hwframe_transfer_data(swFrame, frame, 0) < 0)
-              continue;
-            targetFrame = swFrame;
-          }
+      int sendRet = avcodec_send_packet(codecCtx_, packet);
+      if (sendRet < 0) {
+        // 패킷 에러 시 디코더 버퍼 즉시 flush → 다음 키프레임까지 기다리지 않음
+        avcodec_flush_buffers(codecCtx_);
+      }
+      while (avcodec_receive_frame(codecCtx_, frame) == 0) {
+        AVFrame *targetFrame = frame;
 
-          int srcW = targetFrame->width, srcH = targetFrame->height;
-          if (srcW <= 0 || srcH <= 0)
+        // ── Frame Throttle: GPU download 전에 건너뜨 (RTP 버퍼 오버플로
+        // 방지) ──
+        auto now = std::chrono::steady_clock::now();
+        auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             now - lastFrameTime_)
+                             .count();
+        if (elapsedMs < 66) { // ~15fps: 건너뜨 프레임은 GPU download 없이 버림
+          av_frame_unref(frame);
+          continue;
+        }
+        lastFrameTime_ = now;
+
+        if (frame->format == AV_PIX_FMT_D3D11) {
+          if (av_hwframe_transfer_data(swFrame, frame, 0) < 0)
             continue;
+          targetFrame = swFrame;
+        }
 
-          if (targetFrame->format == AV_PIX_FMT_NV12 ||
-              targetFrame->format == AV_PIX_FMT_NV21) {
+        int srcW = targetFrame->width, srcH = targetFrame->height;
+        if (srcW <= 0 || srcH <= 0)
+          continue;
 
-            int ySize = targetFrame->linesize[0] * srcH;
-            int uvSize = targetFrame->linesize[1] * (srcH / 2);
-            int requiredBytes = ySize + uvSize;
+        if (targetFrame->format == AV_PIX_FMT_NV12 ||
+            targetFrame->format == AV_PIX_FMT_NV21) {
 
-            if (width != srcW || height != srcH) {
-              width = srcW;
-              height = srcH;
-              bufferPool_.clear();
-              int poolSize = (width > 2000) ? Config::VIDEO_BUFFER_POOL_SIZE_4K
-                                            : Config::VIDEO_BUFFER_POOL_SIZE_HD;
-              for (int i = 0; i < poolSize; ++i)
-                bufferPool_.push_back(
-                    std::make_shared<std::vector<uint8_t>>(requiredBytes + 64));
-            }
-
-            std::shared_ptr<std::vector<uint8_t>> targetBuf = nullptr;
-            for (auto &b : bufferPool_)
-              if (b.use_count() == 1) {
-                targetBuf = b;
-                break;
-              }
-            if (!targetBuf)
-              continue;
-
-            std::memcpy(targetBuf->data(), targetFrame->data[0], ySize);
-            std::memcpy(targetBuf->data() + ySize, targetFrame->data[1],
-                        uvSize);
-
-            if (onFrameReady) {
-              onFrameReady({targetBuf, srcW, srcH, targetFrame->linesize[0],
-                            targetFrame->linesize[1], ySize, 0});
-            }
+          if (onFrameReady) {
+            onFrameReady({targetFrame->data[0], targetFrame->data[1], srcW,
+                          srcH, targetFrame->linesize[0],
+                          targetFrame->linesize[1], 0, 0});
           }
         }
       }

@@ -6,20 +6,42 @@ import "../Layout"
 import "../Component/camera"
 import "../Component/device"
 
+// ── DevicePage ──────────────────────────────────────────────────────────────
+// Qt/Front: Layout + 표현만 담당.
+// 비즈니스 로직(device capability 조회, 네트워크 전송)은 C++ deviceModel / networkBridge 에 위임.
+// ────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
     signal requestPage(string pageName)
     signal requestClose
 
+    // ── 선택 상태 ─────────────────────────────────────────────────────────────
     property string selectedUrl: ""
     property int selectedSlotId: -1
-    property string selectedIp: "" // Added for device page
+    property string selectedIp: ""
+
+    // ── 레이지 로드: 페이지 전환 애니메이션(320ms) 이후 모델 바인딩 ─────────────
+    property bool pageReady: false
+
+    StackView.onActivating: loadTimer.start()
+    StackView.onDeactivating: {
+        pageReady = false;
+        selectedIp = "";
+        selectedUrl = "";
+        selectedSlotId = -1;
+    }
+
+    Timer {
+        id: loadTimer
+        interval: 320
+        onTriggered: root.pageReady = true
+    }
 
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // ── Left Panel: Camera Grid (70%) ──────────────────────────────
+        // ── 왼쪽 패널: 카메라 그리드 (70%) ──────────────────────────────────────
         Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: parent.width * 0.7
@@ -27,7 +49,7 @@ Item {
 
             CameraSplitLayout {
                 anchors.fill: parent
-                model: typeof cameraModel !== "undefined" ? cameraModel : null
+                model: root.pageReady && typeof cameraModel !== "undefined" ? cameraModel : null
                 pageType: "Device"
                 selectedUrl: root.selectedUrl
                 selectedSlotId: root.selectedSlotId
@@ -35,18 +57,13 @@ Item {
                 onCameraSelected: (url, slotId) => {
                     root.selectedUrl = url;
                     root.selectedSlotId = slotId;
-                    // Extract IP from URL for device page
-                    let ipMatch = url.match(/rtsp:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
-                    if (ipMatch && ipMatch[1]) {
-                        root.selectedIp = ipMatch[1];
-                    } else {
-                        root.selectedIp = "";
-                    }
-                    console.log("Device Page: Camera selected", url, "slot", slotId, "IP", root.selectedIp);
+
+                    // IP 추출
+                    root.selectedIp = (typeof deviceModel !== "undefined") ? deviceModel.deviceIp(url) : "";
                 }
 
                 onActionRequested: url => {
-                    console.log("Device Page: Device control requested for", url);
+                // 컨텍스트 메뉴로 처리
                 }
 
                 onCameraRightClicked: (url, gx, gy) => {
@@ -63,184 +80,358 @@ Item {
             }
         }
 
-        // ── Right Panel: Detail View (30%) ─────────────────────────────
-        ColumnLayout {
+        // ── 오른쪽 패널: Device 상세 + 제어 (30%) ─────────────────────────────
+        Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: parent.width * 0.3
-            spacing: 16
+            color: Theme.bgSecondary
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                color: Theme.bgSecondary
-                radius: 8
+            // 선택 전 플레이스홀더
+            Text {
+                anchors.centerIn: parent
+                visible: root.selectedIp === ""
+                text: "Click a camera card\nto view device details."
+                color: Theme.isDark ? "#555" : "#aaa"
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: 13
+            }
 
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
+                visible: root.selectedIp !== ""
+
+                // ── 디바이스 헤더 ───────────────────────────────────────────────
                 ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: 24
+                    spacing: 4
+                    Text {
+                        text: root.selectedIp !== "" ? root.selectedIp : "No Device"
+                        color: Theme.fontColor
+                        font.pixelSize: 20
+                        font.bold: true
+                    }
+                    Text {
+                        text: "Live Device Status"
+                        color: Theme.hanwhaFirst
+                        font.pixelSize: 12
+                        font.bold: true
+                    }
+                }
 
-                    // ── Header: Node Info ────────────────────────────────
-                    ColumnLayout {
-                        spacing: 4
-                        Text {
-                            text: deviceModel.hasDevice(root.selectedIp) ? root.selectedIp : "No Device Selected"
-                            color: Theme.fontColor
-                            font.pixelSize: 20
-                            font.bold: true
-                        }
-                        Text {
-                            text: "Live Device Status"
-                            color: Theme.hanwhaFirst
-                            font.pixelSize: 12
-                            font.bold: true
-                        }
+                // ── CPU / Memory / Temp 카드 ────────────────────────────────────
+                GridLayout {
+                    columns: 3
+                    Layout.fillWidth: true
+                    columnSpacing: 8
+
+                    StatusCard {
+                        title: "CPU"
+                        value: root.selectedIp !== "" && typeof deviceModel !== "undefined" && deviceModel.hasDevice(root.selectedIp) ? deviceModel.cpu(root.selectedIp).toFixed(1) + "%" : "--"
+                    }
+                    StatusCard {
+                        title: "Memory"
+                        value: root.selectedIp !== "" && typeof deviceModel !== "undefined" && deviceModel.hasDevice(root.selectedIp) ? deviceModel.memory(root.selectedIp).toFixed(1) + "%" : "--"
+                    }
+                    StatusCard {
+                        title: "Temp"
+                        value: root.selectedIp !== "" && typeof deviceModel !== "undefined" && deviceModel.hasDevice(root.selectedIp) ? deviceModel.temp(root.selectedIp).toFixed(1) + "°C" : "--"
+                    }
+                }
+
+                // ── 데이터 히스토리 그래프 ──────────────────────────────────────
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    visible: root.selectedIp !== ""
+
+                    Text {
+                        text: "History"
+                        color: "#888"
+                        font.pixelSize: 10
                     }
 
-                    // ── Current Metrics (CPU, MEM, TEMP) ──────────────────
-                    GridLayout {
-                        columns: 3
+                    // Canvas 기반 그래프 (CPU)
+                    DeviceGraph {
                         Layout.fillWidth: true
+                        height: 60
+                        label: "CPU"
+                        lineColor: "#44aaff"
+                        history: (root.selectedIp !== "" && typeof deviceModel !== "undefined") ? deviceModel.getHistory(root.selectedIp) : []
+                        historyField: "cpu"
+                    }
+                    DeviceGraph {
+                        Layout.fillWidth: true
+                        height: 60
+                        label: "Mem"
+                        lineColor: "#44ff88"
+                        history: (root.selectedIp !== "" && typeof deviceModel !== "undefined") ? deviceModel.getHistory(root.selectedIp) : []
+                        historyField: "memory"
+                    }
+                    DeviceGraph {
+                        Layout.fillWidth: true
+                        height: 60
+                        label: "Temp"
+                        lineColor: "#ffaa44"
+                        history: (root.selectedIp !== "" && typeof deviceModel !== "undefined") ? deviceModel.getHistory(root.selectedIp) : []
+                        historyField: "temp"
+                    }
+                }
+
+                // ── PTZ / IR / Heater 컨트롤 (Big Buttons) ─────────────────────
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 16
+                    visible: root.selectedIp !== ""
+
+                    Text {
+                        text: qsTr("Device Controls")
+                        color: Theme.fontColor
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+
+                    // PTZ 방향키 (Grid)
+                    GridLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        columns: 3
+                        rowSpacing: 10
                         columnSpacing: 10
 
-                        StatusCard {
-                            title: "CPU"
-                            value: deviceModel.hasDevice(root.selectedIp) ? deviceModel.cpu(root.selectedIp).toFixed(1) + "%" : "--"
+                        // Up row
+                        Item {
+                            width: 60
+                            height: 60
                         }
-                        StatusCard {
-                            title: "Memory"
-                            value: deviceModel.hasDevice(root.selectedIp) ? deviceModel.memory(root.selectedIp).toFixed(1) + "%" : "--"
+                        Rectangle {
+                            width: 60
+                            height: 60
+                            radius: 8
+                            color: upArea.pressed ? "#aaaaaa" : "#333333"
+                            border.color: "#555"
+                            border.width: 1
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u2191"
+                                color: "white"
+                                font.pixelSize: 24
+                                font.bold: true
+                            }
+                            MouseArea {
+                                id: upArea
+                                anchors.fill: parent
+                                onPressed: {
+                                    if (autoSwitch.checked) {
+                                        autoSwitch.checked = false; // Triggers onToggled which handles the timer
+                                    }
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "w", "", "");
+                                }
+                                onReleased: {
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "", "", "");
+                                }
+                            }
                         }
-                        StatusCard {
-                            title: "Temp"
-                            value: deviceModel.hasDevice(root.selectedIp) ? deviceModel.temp(root.selectedIp).toFixed(1) + "°C" : "--"
+                        Item {
+                            width: 60
+                            height: 60
+                        }
+
+                        // Middle row
+                        Rectangle {
+                            width: 60
+                            height: 60
+                            radius: 8
+                            color: leftArea.pressed ? "#aaaaaa" : "#333333"
+                            border.color: "#555"
+                            border.width: 1
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u2190"
+                                color: "white"
+                                font.pixelSize: 24
+                                font.bold: true
+                            }
+                            MouseArea {
+                                id: leftArea
+                                anchors.fill: parent
+                                onPressed: {
+                                    if (autoSwitch.checked) {
+                                        autoSwitch.checked = false;
+                                    }
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "a", "", "");
+                                }
+                                onReleased: {
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "", "", "");
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: 60
+                            height: 60
+                            radius: 8
+                            color: downArea.pressed ? "#aaaaaa" : "#333333"
+                            border.color: "#555"
+                            border.width: 1
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u2193"
+                                color: "white"
+                                font.pixelSize: 24
+                                font.bold: true
+                            }
+                            MouseArea {
+                                id: downArea
+                                anchors.fill: parent
+                                onPressed: {
+                                    if (autoSwitch.checked) {
+                                        autoSwitch.checked = false;
+                                    }
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "s", "", "");
+                                }
+                                onReleased: {
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "", "", "");
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: 60
+                            height: 60
+                            radius: 8
+                            color: rightArea.pressed ? "#aaaaaa" : "#333333"
+                            border.color: "#555"
+                            border.width: 1
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u2192"
+                                color: "white"
+                                font.pixelSize: 24
+                                font.bold: true
+                            }
+                            MouseArea {
+                                id: rightArea
+                                anchors.fill: parent
+                                onPressed: {
+                                    if (autoSwitch.checked) {
+                                        autoSwitch.checked = false;
+                                    }
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "d", "", "");
+                                }
+                                onReleased: {
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "", "", "");
+                                }
+                            }
                         }
                     }
 
-                    // ── PTZ & Device Controls ────────────────────────────
-                    DeviceControlPanel {
+                    Rectangle {
                         Layout.fillWidth: true
-                        deviceIp: root.selectedIp
-                        hasMotor: deviceModel.hasDevice(root.selectedIp) ? deviceModel.data(deviceModel.index(selectedRow, 0), DeviceModel.HasMotorRole) : false
-                        hasIr: deviceModel.hasDevice(root.selectedIp) ? deviceModel.data(deviceModel.index(selectedRow, 0), DeviceModel.HasIrRole) : false
-                        hasHeater: deviceModel.hasDevice(root.selectedIp) ? deviceModel.data(deviceModel.index(selectedRow, 0), DeviceModel.HasHeaterRole) : false
+                        height: 1
+                        color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
+                        Layout.topMargin: 8
+                        Layout.bottomMargin: 8
+                    }
 
-                        property int selectedRow: -1
-                        Component.onCompleted: {
-                            updateSelectedRow();
-                        }
+                    // Sensor / Heater Switches (Row)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 20
 
-                        function updateSelectedRow() {
-                            for (var i = 0; i < deviceModel.rowCount(); i++) {
-                                if (deviceModel.data(deviceModel.index(i, 0), DeviceModel.IpRole) === root.selectedIp) {
-                                    selectedRow = i;
-                                    break;
+                        ColumnLayout {
+                            spacing: 8
+                            Text {
+                                text: qsTr("조도센서")
+                                color: Theme.isDark ? "#aaaaaa" : "#666666"
+                                font.pixelSize: 14
+                            }
+                            Switch {
+                                id: lightSwitch
+                                onToggled: {
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "", checked ? "on" : "off", "");
                                 }
                             }
                         }
 
-                        Connections {
-                            target: root
-                            function onSelectedIpChanged() {
-                                updateSelectedRow();
+                        ColumnLayout {
+                            spacing: 8
+                            Text {
+                                text: qsTr("Heater")
+                                color: Theme.isDark ? "#aaaaaa" : "#666666"
+                                font.pixelSize: 14
+                            }
+                            Switch {
+                                id: helperSwitch
+                                onToggled: {
+                                    if (typeof networkBridge !== "undefined")
+                                        networkBridge.sendDevice(root.selectedIp, "", "", checked ? "on" : "off");
+                                }
                             }
                         }
-                    }
-
-                    // ── History List (Last 20) ───────────────────────────
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        spacing: 12
-
-                        Text {
-                            text: "History (Last 20 Snapshots)"
-                            color: Theme.fontColor
-                            font.pixelSize: 14
-                            font.bold: true
-                        }
-
-                        ListView {
-                            id: historyList
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            spacing: 4
-                            model: root.historyData
-
-                            delegate: Rectangle {
-                                width: historyList.width
-                                height: 32
-                                color: Theme.isDark ? "#2d2d2d" : "#f5f5f7"
-                                radius: 4
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 8
-                                    Text {
-                                        text: Qt.formatDateTime(new Date(modelData.timestamp), "hh:mm:ss")
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.preferredWidth: 60
-                                    }
-                                    Text {
-                                        text: "C: " + modelData.cpu.toFixed(1) + "%"
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.fillWidth: true
-                                    }
-                                    Text {
-                                        text: "M: " + modelData.memory.toFixed(1) + "%"
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.fillWidth: true
-                                    }
-                                    Text {
-                                        text: modelData.temp.toFixed(1) + "°C"
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.preferredWidth: 40
-                                    }
+                        ColumnLayout {
+                            spacing: 8
+                            Text {
+                                text: qsTr("CameraAuto")
+                                color: Theme.isDark ? "#aaaaaa" : "#666666"
+                                font.pixelSize: 14
+                            }
+                            Switch {
+                                id: autoSwitch
+                                onToggled: {
+                                    autoSendTimer.restart();
                                 }
                             }
                         }
                     }
                 }
 
-                Text {
-                    anchors.centerIn: parent
-                    visible: root.selectedIp === ""
-                    text: "Click a camera card\nto view its device capabilities."
-                    color: Theme.isDark ? "#555" : "#aaa"
-                    horizontalAlignment: Text.AlignHCenter
+                // Timer to debounce sending auto/unauto state
+                Timer {
+                    id: autoSendTimer
+                    interval: 1000
+                    repeat: false
+                    onTriggered: {
+                        if (typeof networkBridge !== "undefined" && root.selectedIp !== "") {
+                            networkBridge.sendDevice(root.selectedIp, autoSwitch.checked ? "auto" : "unauto", "", "");
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillHeight: true
                 }
             }
         }
     }
 
-    // ── Logic: Periodic History Fetch ────────────────────────────────────────
-    property var historyData: []
-
+    // ── 주기적 히스토리 갱신 ──────────────────────────────────────────────────
     Timer {
         interval: 5000
-        running: !!root.selectedIp && root.visible
+        running: root.selectedIp !== "" && root.visible && root.pageReady
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            root.historyData = deviceModel.getHistory(root.selectedIp);
+            // deviceModel.getHistory()는 항상 최신 데이터 반환
+            // DeviceGraph의 history 바인딩이 자동으로 갱신되도록 selectedIp 트리거
+            let ip = root.selectedIp;
+            root.selectedIp = "";
+            root.selectedIp = ip;
         }
     }
 
-    onSelectedIpChanged: {
-        root.historyData = deviceModel.getHistory(root.selectedIp);
-    }
-
-    // ── Shared Component (StatusCard) ────────────────────────────────────────
+    // ── 상태 카드 컴포넌트 ────────────────────────────────────────────────────
     component StatusCard: Rectangle {
         property string title: ""
         property string value: ""
         Layout.fillWidth: true
-        height: 60
+        height: 56
         color: Theme.isDark ? "#2d2d2d" : "#f5f5f7"
         radius: 6
         ColumnLayout {
@@ -262,7 +453,7 @@ Item {
         }
     }
 
-    // Context Menu
+    // ── 컨텍스트 메뉴 ─────────────────────────────────────────────────────────
     MouseArea {
         anchors.fill: parent
         z: 399
@@ -274,11 +465,7 @@ Item {
         id: deviceCtxMenu
         visible: false
         z: 400
-        onDeviceControlRequested: url => {
-            console.log("Device control from context menu for", url);
-        }
-        onAiControlRequested: url => {
-            console.log("AI control from context menu for", url);
-        }
+        onDeviceControlRequested: url => {}
+        onAiControlRequested: url => {}
     }
 }

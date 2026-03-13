@@ -30,6 +30,9 @@ class AlarmDispatcher;
 class NetworkBridge;
 class LoginController;
 class SignupController;
+class AppController;
+class AlarmController;
+class SettingsController;
 class CameraModel;
 class DeviceModel;
 class ServerStatusModel;
@@ -75,4 +78,8 @@ private:
   UserModel *userModel_ = nullptr;
   VideoManager *videoManager_ = nullptr;
   AlarmManager *alarmManager_ = nullptr;
+
+  AppController *appController_ = nullptr;
+  AlarmController *alarmController_ = nullptr;
+  SettingsController *settingsController_ = nullptr;
 };

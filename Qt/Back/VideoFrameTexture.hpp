@@ -1,11 +1,10 @@
 ﻿#pragma once
 
+#include <QByteArray>
 #include <QSGDynamicTexture>
 #include <QSGTexture>
 #include <QSize>
 #include <QtGlobal>
-#include <memory>
-#include <vector>
 
 class QRhi;
 class QRhiTexture;
@@ -33,7 +32,7 @@ public:
   ~VideoFrameTexture() override;
 
   // 렌더 스레드에서 호출되어 최신 프레임을 예약함
-  void setPendingFrame(std::shared_ptr<std::vector<uint8_t>> buf, int w, int h,
+  void setPendingFrame(std::shared_ptr<QByteArray> buf, int w, int h,
                        int strideY, int strideUV, int uvOffset,
                        PixelFormat format);
 
@@ -55,8 +54,8 @@ public:
 private:
   QRhiTexture *rhiTex_ = nullptr; // RGBA 모드용 단일 텍스처
 
-  std::shared_ptr<std::vector<uint8_t>> pendingBuf_;
-  std::shared_ptr<std::vector<uint8_t>> currentBuf_;
+  std::shared_ptr<QByteArray> pendingBuf_;
+  std::shared_ptr<QByteArray> currentBuf_;
 
   int pendingW_ = 0;
   int pendingH_ = 0;

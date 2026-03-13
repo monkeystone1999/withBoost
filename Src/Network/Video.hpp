@@ -3,11 +3,8 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <memory>
-#include <mutex>
 #include <string>
 #include <thread>
-#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -21,7 +18,8 @@ extern "C" {
 class Video {
 public:
   struct FramePayload {
-    std::shared_ptr<std::vector<uint8_t>> buffer;
+    const uint8_t *dataY = nullptr;
+    const uint8_t *dataUV = nullptr;
     int width = 0;
     int height = 0;
     int strideY = 0;
@@ -49,7 +47,8 @@ private:
   std::atomic<bool> stopThread_{false};
   bool loggedFrameInfo_{false};
 
-  std::vector<std::shared_ptr<std::vector<uint8_t>>> bufferPool_;
+  // Frame timing
+  std::chrono::steady_clock::time_point lastFrameTime_;
 
   void decodeLoopFFmpeg(const std::string &url);
   bool tryOnceFFmpeg(const std::string &url);

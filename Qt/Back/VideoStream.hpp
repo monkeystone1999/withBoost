@@ -2,6 +2,7 @@
 
 #include "../../Src/Network/Video.hpp"
 #include "Camera.hpp"
+#include <QByteArray>
 #include <QList>
 #include <QMap>
 #include <QObject>
@@ -13,7 +14,7 @@ class VideoWorker : public QObject {
   Q_OBJECT
 public:
   struct FrameData {
-    std::shared_ptr<std::vector<uint8_t>> buffer;
+    std::shared_ptr<QByteArray> buffer;
     int width = 0;
     int height = 0;
     int strideY = 0;
@@ -40,8 +41,9 @@ signals:
 private:
   QString rtspUrl_;
   std::unique_ptr<Video> video_;
+  QByteArray workingBuffer_;
 
-  std::atomic<std::shared_ptr<std::vector<uint8_t>>> atomicBuffer_;
+  std::atomic<std::shared_ptr<QByteArray>> atomicBuffer_;
   std::atomic<int> atomicWidth_{0};
   std::atomic<int> atomicHeight_{0};
   std::atomic<int> atomicStrideY_{0};

@@ -19,6 +19,16 @@ Item {
     property string activeCtrlUrl: ""
     property int dragSourceIndex: -1
 
+    // ── 레이지 로드: 페이지 전환 애니메이션(320ms) 이후 모델 바인딩 ─────────────
+    property bool pageReady: false
+    StackView.onActivating: pageLoadTimer.start()
+    StackView.onDeactivating: pageReady = false
+    Timer {
+        id: pageLoadTimer
+        interval: 320
+        onTriggered: root.pageReady = true
+    }
+
     Rectangle {
         id: mainArea
         anchors.fill: parent
@@ -29,7 +39,7 @@ Item {
             id: gridLayout
             anchors.fill: parent
             anchors.margins: 20
-            model: typeof cameraModel !== "undefined" ? cameraModel : null
+            model: root.pageReady && typeof cameraModel !== "undefined" ? cameraModel : null
             itemsPerRow: 4
 
             dragSourceIndex: root.dragSourceIndex
@@ -139,9 +149,9 @@ Item {
             z: 300
 
             deviceIp: typeof deviceModel !== "undefined" ? deviceModel.deviceIp(root.activeCtrlUrl) : ""
-            hasMotor: typeof deviceModel !== "undefined" ? deviceModel.hasMotor(root.activeCtrlUrl) : false
-            hasIr: typeof deviceModel !== "undefined" ? deviceModel.hasIr(root.activeCtrlUrl) : false
-            hasHeater: typeof deviceModel !== "undefined" ? deviceModel.hasHeater(root.activeCtrlUrl) : false
+            hasMotor: true
+            hasIr: true
+            hasHeater: true
 
             onCloseRequested: {
                 root.activeCtrlUrl = "";

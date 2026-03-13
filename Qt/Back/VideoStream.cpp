@@ -7,32 +7,37 @@ VideoWorker::VideoWorker(const QString &rtspUrl, QObject *parent)
     : QObject(parent), rtspUrl_(rtspUrl), video_(std::make_unique<Video>()) {
 
   video_->onFrameReady = [this](const Video::FramePayload &payload) {
-    if (!payload.buffer || payload.buffer->empty() || payload.width <= 0 ||
+    if (!payload.dataY || !payload.dataUV || payload.width <= 0 ||
         payload.height <= 0)
       return;
 
     int w = payload.width;
     int h = payload.height;
-    int uvOffset =
-        payload.offsetUV > 0 ? payload.offsetUV : payload.strideY * h;
     int rgbaStride = w * 4;
+    int requiredSize = rgbaStride * h;
 
-    auto rgbaBuf = std::make_shared<std::vector<uint8_t>>(rgbaStride * h);
-    const uint8_t *srcY = payload.buffer->data();
-    const uint8_t *srcUV = payload.buffer->data() + uvOffset;
-    uint8_t *dstRGBA = rgbaBuf->data();
+    if (workingBuffer_.size() < requiredSize) {
+      workingBuffer_.resize(requiredSize);
+    }
+
+    const uint8_t *srcY = payload.dataY;
+    const uint8_t *srcUV = payload.dataUV;
+    uint8_t *dstRGBA = reinterpret_cast<uint8_t *>(workingBuffer_.data());
 
     libyuv::NV12ToABGR(srcY, payload.strideY, srcUV, payload.strideUV, dstRGBA,
                        rgbaStride, w, h);
 
-    atomicBuffer_.store(rgbaBuf, std::memory_order_release);
+    auto emitBuf = std::make_shared<QByteArray>(
+        workingBuffer_); // Re-use the underlying array via copy, or just
+                         // construct anew (still cheaper than vector)
+
+    atomicBuffer_.store(emitBuf, std::memory_order_release);
     atomicWidth_.store(w, std::memory_order_relaxed);
     atomicHeight_.store(h, std::memory_order_relaxed);
     atomicStrideY_.store(rgbaStride, std::memory_order_relaxed);
     atomicStrideUV_.store(0, std::memory_order_relaxed);
     atomicOffsetUV_.store(0, std::memory_order_relaxed);
     atomicFormat_.store(1, std::memory_order_relaxed); // 1 = RGBA
-
     frameSeq_.fetch_add(1, std::memory_order_release);
 
     if (!loggedFrameInfo_.load()) {

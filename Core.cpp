@@ -27,15 +27,18 @@
 #include "Src/Thread/ThreadPool.hpp"
 
 // ── Layer 2 ──────────────────────────────────────────────────────────────────
+#include "Qt/Back/AlarmController.hpp"
 #include "Qt/Back/AlarmManager.hpp"
+#include "Qt/Back/AppController.hpp"
 #include "Qt/Back/Auth.hpp"
 #include "Qt/Back/Camera.hpp"
 #include "Qt/Back/Device.hpp"
 #include "Qt/Back/NetworkBridge.hpp"
 #include "Qt/Back/ServerStatus.hpp"
+#include "Qt/Back/SettingsController.hpp"
 #include "Qt/Back/UserModel.hpp"
-
 #include "Qt/Back/VideoStream.hpp"
+
 
 #include <QDebug>
 #include <QMetaObject>
@@ -126,6 +129,11 @@ void Core::constructLayer2(QQmlEngine &engine) {
 
   // AlarmManager: receives pre-parsed AlarmEvent from Core wiring
   alarmManager_ = new AlarmManager(alarmDispatcher_.get(), parent);
+
+  appController_ = new AppController(parent);
+  alarmController_ = new AlarmController(parent);
+  settingsController_ = new SettingsController(parent);
+  settingsController_->load();
 
   qDebug() << "[Core] Layer 2 constructed";
 }
@@ -258,6 +266,10 @@ void Core::wireSignals() {
   QObject::connect(login_, &LoginController::logoutRequested, cameraModel_,
                    &CameraModel::clearAll);
 
+  // ── Alarm ───────────────────────────────────────────────────────────────
+  QObject::connect(alarmManager_, &AlarmManager::alarmTriggered,
+                   alarmController_, &AlarmController::onAlarmTriggered);
+
   qDebug() << "[Core] signals wired";
 }
 
@@ -277,6 +289,10 @@ void Core::registerContextProperties(QQmlEngine &engine) {
   ctx->setContextProperty("userModel", userModel_);
   ctx->setContextProperty("videoManager", videoManager_);
   ctx->setContextProperty("alarmManager", alarmManager_);
+
+  ctx->setContextProperty("appController", appController_);
+  ctx->setContextProperty("alarmController", alarmController_);
+  ctx->setContextProperty("settingsController", settingsController_);
 
   // ── Test Data for UserModel ────────────────────────────────────────────
   // TODO: Remove this test data when real user data comes from server

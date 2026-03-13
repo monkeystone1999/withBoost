@@ -209,17 +209,9 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            // 콴 노 열려있는 모든 CameraWindow 닫기
-                            if (typeof root.Window !== "undefined") {
-                                var mainWin = root.Window.window;
-                                if (mainWin && typeof mainWin.closeAllCameraWindows === "function")
-                                    mainWin.closeAllCameraWindows();
-                            }
-                            if (typeof loginController !== "undefined" && loginController !== null) {
-                                loginController.logout();
-                            }
+                            if (typeof appController !== "undefined")
+                                appController.logout();
                             root.currentPage = "Login";
-                            root.requestPage("Login");
                             root.close();
                         }
                     }
@@ -277,12 +269,8 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            // Option은 별도 Page가 아닌 Floating Dialog
-                            if (typeof root.Window !== "undefined") {
-                                var mainWin = root.Window.window;
-                                if (mainWin && typeof mainWin.openOptionDialog === "function")
-                                    mainWin.openOptionDialog();
-                            }
+                            if (typeof appController !== "undefined")
+                                appController.openOptionDialog();
                             root.close();
                         }
                     }

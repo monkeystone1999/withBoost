@@ -13,43 +13,54 @@ Window {
 
     onClosing: Qt.quit()
 
-    // ── 열려있는 CameraWindow 목록 ───────────────────────────────────────────
-    property var openCameraWindows: []
+    // ── AppController: 네비게이션 + CameraWindow 레지스트리 ───────────────────
+    Connections {
+        target: typeof appController !== "undefined" ? appController : null
 
-    function registerCameraWindow(win) {
-        openCameraWindows.push(win);
-    }
-    function unregisterCameraWindow(win) {
-        openCameraWindows = openCameraWindows.filter(w => w !== win);
-    }
-    function closeAllCameraWindows() {
-        var list = openCameraWindows.slice();
-        for (var i = 0; i < list.length; i++) {
-            list[i].close();
+        function onNavigateTo(page) {
+            switch (page) {
+            case "Login":
+                stackView.replace(null, "View/LoginPage.qml"); break
+            case "Dashboard":
+            case "Home":
+                if (stackView.depth > 1) stackView.pop(null)
+                else stackView.replace(null, "View/DashboardPage.qml"); break
+            case "AdminDashboard":
+                stackView.replace(null, "View/AdminPage.qml"); break
+            case "AI":
+                stackView.replace(null, "View/AIPage.qml"); break
+            case "Device":
+                stackView.replace(null, "View/DevicePage.qml"); break
+            case "MyPage":
+                stackView.replace(null, "View/MyPage.qml"); break
+            case "Signup":
+                stackView.replace(null, "View/SignupPage.qml"); break
+            case "Back":
+                if (stackView.depth > 1) stackView.pop(); break
+            }
         }
-        openCameraWindows = [];
-    }
-
-    // ── Option Dialog ───────────────────────────────────────────────────────
-    function openOptionDialog() {
-        optionDialog.open();
+        function onOptionDialogRequested() {
+            optionDialog.open()
+        }
+        function onLogoutRequested() {
+            if (typeof loginController !== "undefined" && loginController !== null)
+                loginController.logout()
+        }
     }
 
     WindowAgent {
         id: agent
         Component.onCompleted: {
-            agent.setup(root);
-            // 타이틀바 영역 등록
-            agent.setTitleBar(titleBar);
-            // 시스템 버튼 등록: setup() 이후에 호율해야 함 (null 크래시 방지)
-            agent.setSystemButton(WindowAgent.Close, titleBar.closeBtn);
-            agent.setSystemButton(WindowAgent.Maximize, titleBar.maximizeBtn);
-            agent.setSystemButton(WindowAgent.Minimize, titleBar.minimizeBtn);
-            // Option 버튼은 드래그 영역 제외
-            agent.setHitTestVisible(titleBar.menuBtn);
-            agent.setHitTestVisible(titleBar.alarmBtn);
+            agent.setup(root)
+            agent.setTitleBar(titleBar)
+            agent.setSystemButton(WindowAgent.Close, titleBar.closeBtn)
+            agent.setSystemButton(WindowAgent.Maximize, titleBar.maximizeBtn)
+            agent.setSystemButton(WindowAgent.Minimize, titleBar.minimizeBtn)
+            agent.setHitTestVisible(titleBar.menuBtn)
+            agent.setHitTestVisible(titleBar.alarmBtn)
         }
     }
+
     Titlebar {
         id: titleBar
         window: root
@@ -58,7 +69,6 @@ Window {
         anchors.right: parent.right
     }
 
-    // 콘텐츠 영역 (StackView for Page Navigation)
     StackView {
         id: stackView
         anchors.top: titleBar.bottom
@@ -67,107 +77,54 @@ Window {
         anchors.bottom: parent.bottom
         initialItem: "View/LoginPage.qml"
 
-        // Push: 새 페이지가 오른쪽에서 슬라이드인
         pushEnter: Transition {
             ParallelAnimation {
-                NumberAnimation {
-                    property: "x"
-                    from: stackView.width * 0.06
-                    to: 0
-                    duration: 320
-                    easing.type: Easing.OutCubic
-                }
-                NumberAnimation {
-                    property: "opacity"
-                    from: 0
-                    to: 1
-                    duration: 280
-                    easing.type: Easing.OutCubic
-                }
+                NumberAnimation { property: "x"; from: stackView.width * 0.06; to: 0; duration: 320; easing.type: Easing.OutCubic }
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 280; easing.type: Easing.OutCubic }
             }
         }
         pushExit: Transition {
-            NumberAnimation {
-                property: "x"
-                from: 0
-                to: -stackView.width * 0.04
-                duration: 320
-                easing.type: Easing.OutCubic
-            }
+            NumberAnimation { property: "x"; from: 0; to: -stackView.width * 0.04; duration: 320; easing.type: Easing.OutCubic }
         }
-
-        // Pop: 이전 페이지가 왼쪽에서 슬라이드인
         popEnter: Transition {
             ParallelAnimation {
-                NumberAnimation {
-                    property: "x"
-                    from: -stackView.width * 0.06
-                    to: 0
-                    duration: 320
-                    easing.type: Easing.OutCubic
-                }
-                NumberAnimation {
-                    property: "opacity"
-                    from: 0
-                    to: 1
-                    duration: 280
-                    easing.type: Easing.OutCubic
-                }
+                NumberAnimation { property: "x"; from: -stackView.width * 0.06; to: 0; duration: 320; easing.type: Easing.OutCubic }
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 280; easing.type: Easing.OutCubic }
             }
         }
         popExit: Transition {
-            NumberAnimation {
-                property: "x"
-                from: 0
-                to: stackView.width * 0.04
-                duration: 320
-                easing.type: Easing.OutCubic
-            }
+            NumberAnimation { property: "x"; from: 0; to: stackView.width * 0.04; duration: 320; easing.type: Easing.OutCubic }
         }
     }
 
-    // 사이드 네비게이션 패널
     SideNavPanel {
         id: sideNav
         z: 50
-        currentPage: "Dashboard"
-
+        currentPage: typeof appController !== "undefined" ? appController.currentPage : "Dashboard"
         onRequestPage: pageName => {
-            switch (pageName) {
-            case "Home":
-            case "Dashboard":
-                if (stackView.depth > 1) {
-                    stackView.pop(null);
-                } else {
-                    stackView.replace(null, "View/DashboardPage.qml");
-                }
-                break;
-            case "AdminDashboard":
-                stackView.replace(null, "View/AdminPage.qml");
-                break;
-            case "AI":
-                stackView.replace(null, "View/AIPage.qml");
-                break;
-            case "Device":
-                stackView.replace(null, "View/DevicePage.qml");
-                break;
-            case "MyPage":
-                stackView.replace(null, "View/MyPage.qml");
-                break;
-            case "Settings":
-                root.openOptionDialog();
-                break;
-            case "Login":
-                stackView.replace(null, "View/LoginPage.qml");
-                break;
-            case "Signup":
-                stackView.replace(null, "View/SignupPage.qml");
-                break;
-            }
+            if (typeof appController !== "undefined")
+                appController.navigate(pageName)
         }
     }
 
-    // ── 전역 알람 레이어 ──────────────────────────────────────────────────────
+    // ── 현재 페이지의 requestPage 시그널 처리 ──────────────────────────────────
+    Connections {
+        target: stackView.currentItem
+        function onRequestPage(pageName) {
+            if (typeof appController !== "undefined")
+                appController.navigate(pageName)
+        }
+        function onRequestClose() {
+            if (stackView.depth > 1) stackView.pop()
+        }
+    }
+
+    Connections {
+        target: titleBar.menuBtn
+        function onClicked() { sideNav.toggle() }
+    }
+
+    // ── 알람 레이어: AlarmController.alarms 리스트를 ListView로 표시 ──────────
     Item {
         id: alarmLayer
         z: 200
@@ -176,150 +133,33 @@ Window {
         anchors.rightMargin: 20
         anchors.bottomMargin: 20
         width: 300
-        // 높이는 자식 카드들의 총합에 맞게 자동
         height: parent.height
         clip: false
 
-        // 알람 큐 (화면 초과 시 대기)
-        property var pendingQueue: []
-        // 현재 표시 중인 카드들의 총 높이 추적
-        property int totalDisplayedHeight: 0
-        readonly property int cardSpacing: 8
-        readonly property int maxDisplayHeight: root.height - titleBar.height - 40
-
-        // 현재 표시 카드 컨테이너 (아래서 위로 쌓임)
-        Column {
-            id: alarmColumn
+        ListView {
+            id: alarmListView
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            spacing: alarmLayer.cardSpacing
-        }
+            width: parent.width
+            height: contentHeight
+            spacing: 8
+            verticalLayoutDirection: ListView.BottomToTop
+            model: typeof alarmController !== "undefined" ? alarmController.alarms : []
 
-        // AlarmCard 동적 생성용 컴포넌트
-        Component {
-            id: alarmCardComponent
-            AlarmCard {
-                onDismissRequested: id => alarmLayer.removeAlarm(id)
-            }
-        }
-
-        // 알람 추가 함수
-        function addAlarm(title, detail, severity) {
-            var id = Date.now();
-            var estimatedHeight = 60 + cardSpacing;
-
-            if (totalDisplayedHeight + estimatedHeight > maxDisplayHeight) {
-                // 화면 초과 — 큐에 저장
-                pendingQueue.push({
-                    id: id,
-                    title: title,
-                    detail: detail,
-                    severity: severity
-                });
-                return;
-            }
-
-            var card = alarmCardComponent.createObject(alarmColumn, {
-                alarmId: id,
-                alarmTitle: title,
-                alarmDetail: detail,
-                severity: severity
-            });
-
-            if (card) {
-                totalDisplayedHeight += estimatedHeight;
-            }
-        }
-
-        // 알람 제거 함수
-        function removeAlarm(id) {
-            // alarmColumn 자식 탐색 후 제거
-            for (var i = 0; i < alarmColumn.children.length; i++) {
-                var child = alarmColumn.children[i];
-                if (child.alarmId === id) {
-                    totalDisplayedHeight -= (child.height + cardSpacing);
-                    if (totalDisplayedHeight < 0)
-                        totalDisplayedHeight = 0;
-                    child.destroy();
-                    break;
+            delegate: AlarmCard {
+                alarmId: modelData.id
+                alarmTitle: modelData.title
+                alarmDetail: modelData.detail
+                severity: modelData.severity
+                onDismissRequested: id => {
+                    if (typeof alarmController !== "undefined")
+                        alarmController.dismiss(id)
                 }
             }
-            // 큐에서 다음 알람 꺼내기
-            if (pendingQueue.length > 0) {
-                var next = pendingQueue.shift();
-                pendingQueue = pendingQueue;  // notify
-                addAlarm(next.title, next.detail, next.severity);
-            }
         }
     }
 
-    // 백엔드 알람 시그널 연결 (alarmManager 는 App.cpp 에서 context property 로 노출)
-    Connections {
-        target: typeof alarmManager !== "undefined" ? alarmManager : null
-        function onAlarmTriggered(title, detail, severity) {
-            alarmLayer.addAlarm(title, detail, severity);
-        }
-    }
-
-    // Global Navigation Handler (StackView pages)
-    Connections {
-        target: stackView.currentItem
-        function onRequestPage(pageName) {
-            console.log("Navigation requested:", pageName);
-            switch (pageName) {
-            case "Login":
-                // Logout 시나리오나 처음 Session 시작 시나리오 둘 다 커버 가능
-                // Navigation은 LoginPage를 루트 페이지로 교체합니다.
-                stackView.replace(null, "View/LoginPage.qml");
-                break;
-            case "Dashboard":
-            case "Home":
-                if (stackView.depth > 1) {
-                    stackView.pop(null);
-                } else {
-                    stackView.replace(null, "View/DashboardPage.qml");
-                }
-                break;
-            case "AdminDashboard":
-                stackView.replace(null, "View/AdminPage.qml");
-                break;
-            case "AI":
-                stackView.replace(null, "View/AIPage.qml");
-                break;
-            case "Device":
-                stackView.replace(null, "View/DevicePage.qml");
-                break;
-            case "MyPage":
-                stackView.replace(null, "View/MyPage.qml");
-                break;
-            case "Signup":
-                stackView.replace(null, "View/SignupPage.qml");
-                break;
-            case "Settings":
-                root.openOptionDialog();
-                break;
-            case "Back":
-                stackView.pop();
-                break;
-            default:
-                console.log("Unknown page:", pageName);
-            }
-        }
-        function onRequestClose() {
-            if (stackView.depth > 1) {
-                stackView.pop();
-            }
-        }
-    }
-
-    Connections {
-        target: titleBar.menuBtn
-        function onClicked() {
-            sideNav.toggle();
-        }
-    }
-
-    // ── Option Dialog (Floating Popup) ────────────────────────────────────────
+    // ── Option Dialog ─────────────────────────────────────────────────────────
     Popup {
         id: optionDialog
         anchors.centerIn: parent
@@ -333,95 +173,61 @@ Window {
         background: Rectangle {
             color: Theme.bgSecondary
             radius: 14
-            layer.enabled: true
-            layer.effect: null  // shadow via border instead for simplicity
             border.color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
             border.width: 1
         }
 
         Column {
             id: optDialogCol
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: 0
+            anchors { top: parent.top; left: parent.left; right: parent.right; margins: 0 }
             spacing: 0
 
-            // — Title Bar —
             Rectangle {
                 width: parent.width
                 height: 52
                 color: "transparent"
                 radius: 14
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "⚙️  Option"
-                    font.pixelSize: 17
-                    font.bold: true
-                    color: Theme.fontColor
-                }
-
-                // Close X
+                Text { anchors.centerIn: parent; text: "⚙️  Option"; font.pixelSize: 17; font.bold: true; color: Theme.fontColor }
                 Rectangle {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: 14
-                    width: 28
-                    height: 28
-                    radius: 14
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 14 }
+                    width: 28; height: 28; radius: 14
                     color: closeOptHov.containsMouse ? (Theme.isDark ? "#555" : "#ddd") : "transparent"
-                    Text {
-                        anchors.centerIn: parent
-                        text: "×"
-                        font.pixelSize: 20
-                        color: Theme.fontColor
-                    }
-                    MouseArea {
-                        id: closeOptHov
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: optionDialog.close()
-                    }
+                    Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 20; color: Theme.fontColor }
+                    MouseArea { id: closeOptHov; anchors.fill: parent; hoverEnabled: true; onClicked: optionDialog.close() }
                 }
-
-                // Divider
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    height: 1
-                    color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
-                }
+                Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16 }height: 1; color: Theme.isDark ? "#3A3A3C" : "#D1D1D6" }
             }
 
-            // — Rows —
             Column {
                 width: parent.width
                 spacing: 0
                 padding: 0
 
-                // 1. Dark Mode
                 OptRow {
                     label: "🌙  Dark Mode"
                     content: Switch {
-                        checked: Theme.isDark
-                        onToggled: Theme.isDark = !Theme.isDark
+                        checked: typeof settingsController !== "undefined" ? settingsController.darkMode : Theme.isDark
+                        onToggled: {
+                            if (typeof settingsController !== "undefined") {
+                                settingsController.darkMode = checked
+                                settingsController.save()
+                            }
+                            Theme.isDark = checked
+                        }
                     }
                 }
-
-                // 2. 알람음
                 OptRow {
                     label: "🔔  Alarm Sound"
                     content: Switch {
-                        id: alarmSoundSwitch
-                        checked: true  // TODO: bind to actual setting
+                        checked: typeof settingsController !== "undefined" ? settingsController.alarmSound : true
+                        onToggled: {
+                            if (typeof settingsController !== "undefined") {
+                                settingsController.alarmSound = checked
+                                settingsController.save()
+                            }
+                        }
                     }
                 }
-
-                // 3. 그리드 레이아웃
                 OptRow {
                     label: "🗖  Default Grid"
                     content: Row {
@@ -429,28 +235,24 @@ Window {
                         Repeater {
                             model: [2, 3, 4]
                             delegate: Rectangle {
-                                width: 36
-                                height: 28
-                                radius: 6
+                                width: 36; height: 28; radius: 6
                                 color: defGridBtn.containsMouse ? Theme.hanwhaFirst : (Theme.isDark ? "#3A3A3C" : "#E5E5EA")
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData
-                                    font.pixelSize: 13
-                                    color: Theme.fontColor
-                                }
+                                Text { anchors.centerIn: parent; text: modelData; font.pixelSize: 13; color: Theme.fontColor }
                                 MouseArea {
                                     id: defGridBtn
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: console.log("Default grid set to", modelData) // TODO
+                                    onClicked: {
+                                        if (typeof settingsController !== "undefined") {
+                                            settingsController.defaultGrid = modelData
+                                            settingsController.save()
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-
-                // 4. 주서버 주소 (readonly)
                 OptRow {
                     label: "🌐  Server"
                     content: Text {
@@ -459,8 +261,6 @@ Window {
                         color: Theme.isDark ? "#888" : "#666"
                     }
                 }
-
-                // 5. 로깁 레벨
                 OptRow {
                     label: "📜  Log Level"
                     content: Row {
@@ -468,70 +268,39 @@ Window {
                         Repeater {
                             model: ["INFO", "WARN", "DEBUG"]
                             delegate: Rectangle {
-                                width: 52
-                                height: 26
-                                radius: 6
+                                width: 52; height: 26; radius: 6
                                 color: logBtn.containsMouse ? Theme.hanwhaFirst : (Theme.isDark ? "#3A3A3C" : "#E5E5EA")
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData
-                                    font.pixelSize: 11
-                                    color: Theme.fontColor
-                                }
+                                Text { anchors.centerIn: parent; text: modelData; font.pixelSize: 11; color: Theme.fontColor }
                                 MouseArea {
                                     id: logBtn
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: console.log("Log level:", modelData)
+                                    onClicked: {
+                                        if (typeof settingsController !== "undefined") {
+                                            settingsController.logLevel = modelData
+                                            settingsController.save()
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-
-                // 6. 앱 버전
                 OptRow {
                     label: "ℹ️  Version"
-                    content: Text {
-                        text: "1.0.0"
-                        font.pixelSize: 13
-                        color: Theme.isDark ? "#888" : "#666"
-                    }
+                    content: Text { text: "1.0.0"; font.pixelSize: 13; color: Theme.isDark ? "#888" : "#666" }
                 }
             }
         }
     }
 
-    // Row helper component
     component OptRow: Item {
         property string label: ""
         property alias content: contentSlot.data
         width: optDialogCol.width
         height: 52
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 24
-            anchors.verticalCenter: parent.verticalCenter
-            text: parent.label
-            font.pixelSize: 14
-            color: Theme.fontColor
-        }
-        Item {
-            id: contentSlot
-            anchors.right: parent.right
-            anchors.rightMargin: 24
-            anchors.verticalCenter: parent.verticalCenter
-            width: childrenRect.width
-            height: childrenRect.height
-        }
-        Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            height: 1
-            color: Theme.isDark ? "#2A2A2C" : "#E5E5EA"
-        }
+        Text { anchors { left: parent.left; leftMargin: 24; verticalCenter: parent.verticalCenter } text: parent.label; font.pixelSize: 14; color: Theme.fontColor }
+        Item { id: contentSlot; anchors { right: parent.right; rightMargin: 24; verticalCenter: parent.verticalCenter } width: childrenRect.width; height: childrenRect.height }
+        Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16 } height: 1; color: Theme.isDark ? "#2A2A2C" : "#E5E5EA" }
     }
 }

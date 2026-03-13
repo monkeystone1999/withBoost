@@ -1,7 +1,5 @@
 ﻿#include "VideoFrameTexture.hpp"
-#include <cstring>
 #include <rhi/qrhi.h>
-#include <vector>
 
 VideoFrameTexture::VideoFrameTexture() {
   setFiltering(QSGTexture::Linear);
@@ -18,9 +16,9 @@ VideoFrameTexture::~VideoFrameTexture() {
 // ── setPendingFrame ──────────────────────────────────────────────────────────
 // 렌더 스레드에서 호출 (beforeSynchronizing 슬롯 안에서).
 // shared_ptr 교환 — ref-count +1만 발생, CPU 픽셀 복사 없음.
-void VideoFrameTexture::setPendingFrame(
-    std::shared_ptr<std::vector<uint8_t>> buf, int w, int h, int strideY,
-    int strideUV, int uvOffset, PixelFormat format) {
+void VideoFrameTexture::setPendingFrame(std::shared_ptr<QByteArray> buf, int w,
+                                        int h, int strideY, int strideUV,
+                                        int uvOffset, PixelFormat format) {
   pendingBuf_ = std::move(buf);
   pendingW_ = w;
   pendingH_ = h;
@@ -66,8 +64,7 @@ void VideoFrameTexture::commitTextureOperations(
   currentBuf_ = std::move(pendingBuf_);
   auto buf = currentBuf_;
   QByteArray data = QByteArray::fromRawData(
-      reinterpret_cast<const char *>(buf->data()),
-      static_cast<qsizetype>(pendingStrideY_ * pendingH_));
+      buf->constData(), static_cast<qsizetype>(pendingStrideY_ * pendingH_));
 
   QRhiTextureSubresourceUploadDescription sub(data);
   QRhiTextureUploadEntry entry(0, 0, sub);

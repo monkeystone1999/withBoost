@@ -1,6 +1,8 @@
 ﻿#include "VideoSurfaceItem.hpp"
+#include <QDebug>
 #include <QSGImageNode>
 #include <algorithm>
+#include <chrono>
 #include <rhi/qrhi.h>
 
 VideoSurfaceItem::VideoSurfaceItem(QQuickItem *parent) : QQuickItem(parent) {
@@ -27,6 +29,13 @@ void VideoSurfaceItem::setWorker(QObject *obj) {
     window_ = nullptr;
   }
 
+  // 타이머 정리
+  if (updateTimer_) {
+    updateTimer_->stop();
+    delete updateTimer_;
+    updateTimer_ = nullptr;
+  }
+
   worker_ = w;
 
   if (worker_ && window()) {
@@ -34,6 +43,12 @@ void VideoSurfaceItem::setWorker(QObject *obj) {
 
     connect(window_, &QQuickWindow::beforeSynchronizing, this,
             &VideoSurfaceItem::onBeforeSynchronizing, Qt::DirectConnection);
+
+    // Render loop이 잠들지 않도록 33ms(~30fps)마다 update() 호출
+    updateTimer_ = new QTimer(this);
+    updateTimer_->setInterval(33);
+    connect(updateTimer_, &QTimer::timeout, this, [this]() { update(); });
+    updateTimer_->start();
 
     update();
 
@@ -81,7 +96,24 @@ void VideoSurfaceItem::onBeforeSynchronizing() {
 
   const uint64_t seq = worker_->frameSeq();
   if (seq == lastSeq_) {
+    // 프레임 업데이트 없음
     return;
+  }
+
+  // ── FPS 카운터 ──
+  static std::chrono::steady_clock::time_point fpsT0 =
+      std::chrono::steady_clock::now();
+  static int fpsCount = 0;
+  fpsCount++;
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(now - fpsT0)
+          .count();
+  if (elapsed >= 1000) {
+    qWarning("[VideoSurfaceItem] QSG pull rate: %d frame/sec (seq=%llu)",
+             fpsCount, (unsigned long long)seq);
+    fpsCount = 0;
+    fpsT0 = now;
   }
 
   lastSeq_ = seq;
@@ -89,7 +121,7 @@ void VideoSurfaceItem::onBeforeSynchronizing() {
   VideoWorker::FrameData frame = worker_->getLatestFrame();
 
   if (!frame.buffer || frame.width <= 0 || frame.height <= 0) {
-    // qDebug() << "[VideoSurfaceItem] Received invalid frame from worker";
+    qWarning("[VideoSurfaceItem] buffer null after seq change!");
     return;
   }
 

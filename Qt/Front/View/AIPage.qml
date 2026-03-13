@@ -16,6 +16,23 @@ Item {
     property string selectedIp: ""
     property var historyData: []
 
+    // ── 레이지 로드: 페이지 전환 애니메이션(320ms) 이후 모델 바인딩 ─────────────
+    property bool pageReady: false
+
+    StackView.onActivating: loadTimer.start()
+    StackView.onDeactivating: {
+        pageReady = false;
+        selectedIp = "";
+        selectedUrl = "";
+        selectedSlotId = -1;
+    }
+
+    Timer {
+        id: loadTimer
+        interval: 320
+        onTriggered: root.pageReady = true
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -28,7 +45,7 @@ Item {
 
             CameraSplitLayout {
                 anchors.fill: parent
-                model: typeof cameraModel !== "undefined" ? cameraModel : null
+                model: root.pageReady && typeof cameraModel !== "undefined" ? cameraModel : null
                 pageType: "AI"
                 selectedUrl: root.selectedUrl
                 selectedSlotId: root.selectedSlotId
@@ -38,12 +55,7 @@ Item {
                     root.selectedSlotId = slotId;
 
                     // Extract IP from URL
-                    let ipMatch = url.match(/rtsp:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
-                    if (ipMatch && ipMatch[1]) {
-                        root.selectedIp = ipMatch[1];
-                    } else {
-                        root.selectedIp = "";
-                    }
+                    root.selectedIp = (typeof deviceModel !== "undefined") ? deviceModel.deviceIp(url) : "";
                     console.log("AI Page: Camera selected", url, "slot", slotId, "IP", root.selectedIp);
                 }
 
@@ -75,7 +87,6 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: Theme.bgSecondary
-                radius: 8
 
                 ColumnLayout {
                     anchors.fill: parent

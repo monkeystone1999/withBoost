@@ -89,7 +89,7 @@ Rectangle {
             spacing: 4
 
             Text {
-                text: "Motor"
+                text: qsTr("PTZ 방향키")
                 color: "#8888aa"
                 font.pixelSize: 10
             }
@@ -104,7 +104,7 @@ Rectangle {
                     height: 38
                 }
                 Btn {
-                    lbl: "U"
+                    lbl: "\u2191"
                     onTapped: _wasd("w")
                 }
                 Item {
@@ -112,7 +112,7 @@ Rectangle {
                     height: 38
                 }
                 Btn {
-                    lbl: "L"
+                    lbl: "\u2190"
                     onTapped: _wasd("a")
                 }
                 Item {
@@ -120,7 +120,7 @@ Rectangle {
                     height: 38
                 }
                 Btn {
-                    lbl: "R"
+                    lbl: "\u2192"
                     onTapped: _wasd("d")
                 }
                 Item {
@@ -128,7 +128,7 @@ Rectangle {
                     height: 38
                 }
                 Btn {
-                    lbl: "D"
+                    lbl: "\u2193"
                     onTapped: _wasd("s")
                 }
                 Item {
@@ -161,14 +161,14 @@ Rectangle {
             spacing: 4
 
             Text {
-                text: "IR"
+                text: qsTr("조도센서")
                 color: "#8888aa"
                 font.pixelSize: 10
             }
             Row {
                 spacing: 6
                 ToggleBtn {
-                    lbl: root.irOn ? "IR ON" : "IR OFF"
+                    lbl: root.irOn ? "센서 ON" : "센서 OFF"
                     active: root.irOn
                     onTapped: {
                         root.irOn = !root.irOn;
