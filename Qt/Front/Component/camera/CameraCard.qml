@@ -15,7 +15,7 @@ Rectangle {
     property string title: ""
     property string rtspUrl: ""
     property bool isOnline: false
-    property rect cropRect: Qt.rect(0, 0, 1, 1)   // §4: UV crop (full frame default)
+    property rect cropRect: Qt.rect(0, 0, 1, 1)  // normalised crop from model
 
     property bool showActionIcon: false
     property string actionIconText: ""
@@ -111,7 +111,7 @@ Rectangle {
                     sourceComponent: VideoSurface {
                         slotId: root.slotId    // §3: primary key
                         rtspUrl: root.rtspUrl   // legacy fallback
-                        cropRect: root.cropRect  // §4: GPU tile crop
+                        cropRect: root.cropRect  // crop region for split tiles
                     }
                 }
 

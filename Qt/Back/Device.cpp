@@ -87,6 +87,7 @@ void DeviceModel::onStoreUpdated(std::vector<DeviceIntegrated> snapshot) {
       }
 
       emit dataChanged(createIndex(idx, 0), createIndex(idx, 0));
+      emit historyUpdated(ip);
 
     } else {
       // 신규 항목 추가
@@ -111,6 +112,8 @@ void DeviceModel::onStoreUpdated(std::vector<DeviceIntegrated> snapshot) {
       beginInsertRows(QModelIndex(), devices_.size(), devices_.size());
       devices_.append(entry);
       endInsertRows();
+
+      emit historyUpdated(ip);
     }
   }
 

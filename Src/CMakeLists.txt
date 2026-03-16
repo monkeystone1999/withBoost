@@ -7,14 +7,14 @@ find_package(libyuv CONFIG REQUIRED)
 add_library(AnoMapSTD STATIC
     Thread/ThreadPool.hpp
     Thread/ThreadPool.cpp
-    Network/Header.hpp
-    Network/INetworkService.hpp
+    Network/Protocol.hpp
+    Network/TcpSession.hpp
+    Network/MessageProcessor.hpp
+    Network/MessageProcessor.cpp
     Network/NetworkService.hpp
     Network/NetworkService.cpp
     Network/Video.hpp
     Network/Video.cpp
-    Network/Session.hpp
-    Network/Session.cpp
     Domain/IStore.hpp
     Domain/Alarm.hpp
     Domain/Alarm.cpp

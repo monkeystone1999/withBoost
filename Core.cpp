@@ -27,6 +27,7 @@
 #include "Src/Thread/ThreadPool.hpp"
 
 // ── Layer 2 ──────────────────────────────────────────────────────────────────
+#include "Qt/Back/AiImageModel.hpp"
 #include "Qt/Back/AlarmController.hpp"
 #include "Qt/Back/AlarmManager.hpp"
 #include "Qt/Back/AppController.hpp"
@@ -39,11 +40,13 @@
 #include "Qt/Back/UserModel.hpp"
 #include "Qt/Back/VideoStream.hpp"
 
-
 #include <QDebug>
 #include <QMetaObject>
 #include <QMetaType>
 #include <QQmlContext>
+#include <nlohmann/json.hpp>
+
+VideoManager *videoManager = nullptr;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -60,8 +63,10 @@ void Core::init(QQmlEngine &engine) {
 
 void Core::shutdown() {
   qDebug() << "[Core] shutdown — stopping video streams";
-  if (videoManager_)
+  if (videoManager_) {
     videoManager_->clearAll();
+    videoManager = nullptr;
+  }
 
   qDebug() << "[Core] shutdown — disconnecting network";
   if (networkService_)
@@ -123,9 +128,11 @@ void Core::constructLayer2(QQmlEngine &engine) {
   deviceModel_ = new DeviceModel(parent);
   serverStatus_ = new ServerStatusModel(parent);
   userModel_ = new UserModel(parent);
+  aiImageModel_ = new AiImageModel(parent);
 
   // VideoManager: manages FFmpeg worker threads per RTSP URL
   videoManager_ = new VideoManager(parent);
+  videoManager = videoManager_; // Set global pointer for VideoStream Bridge
 
   // AlarmManager: receives pre-parsed AlarmEvent from Core wiring
   alarmManager_ = new AlarmManager(alarmDispatcher_.get(), parent);
@@ -245,6 +252,48 @@ void Core::wireSignals() {
       },
       Qt::DirectConnection);
 
+  // ── IMAGE (0x0A) → AiImageModel (GUI Thread via QMetaObject later) ──
+  // Contains JSON metadata + binary JPEG payload. We must extract the JSON
+  // string.
+  QObject::connect(
+      networkBridge_, &NetworkBridge::imageResultReceived, networkBridge_,
+      [this](const std::vector<uint8_t> &data) {
+        // Find the null terminator which separates JSON from JPEG
+        auto it = std::find(data.begin(), data.end(), '\0');
+        if (it != data.end()) {
+          std::string jsonStr(data.begin(), it);
+          QByteArray jpegData(reinterpret_cast<const char *>(&*it + 1),
+                              std::distance(it + 1, data.end()));
+
+          // Note: nlohmann json parsing is light enough here, but better done
+          // on threadPool.
+          threadPool_->submit([this, jsonStr = std::move(jsonStr),
+                               jpegData = std::move(jpegData)] {
+            try {
+              auto parsed = nlohmann::json::parse(jsonStr);
+              QString ip = QString::fromStdString(parsed.value("device", ""));
+              QString deviceName =
+                  QString::fromStdString(parsed.value("device_name", ""));
+              QString type = QString::fromStdString(parsed.value("type", ""));
+              double confidence = parsed.value("confidence", 0.0);
+              long long timestamp = parsed.value("timestamp", 0LL);
+
+              QMetaObject::invokeMethod(
+                  aiImageModel_,
+                  [this, ip, deviceName, type, confidence, timestamp,
+                   jpeg = std::move(jpegData)] {
+                    aiImageModel_->onImageReceived(ip, deviceName, type,
+                                                   confidence, timestamp, jpeg);
+                  },
+                  Qt::QueuedConnection);
+            } catch (const std::exception &e) {
+              qDebug() << "[Core] Failed to parse IMAGE JSON:" << e.what();
+            }
+          });
+        }
+      },
+      Qt::DirectConnection);
+
   // ── CameraModel → VideoManager (URL synchronization) ─────────────────
   //
   // When:  CameraModel emits urlsUpdated after onStoreUpdated.
@@ -287,6 +336,7 @@ void Core::registerContextProperties(QQmlEngine &engine) {
   ctx->setContextProperty("deviceModel", deviceModel_);
   ctx->setContextProperty("serverStatus", serverStatus_);
   ctx->setContextProperty("userModel", userModel_);
+  ctx->setContextProperty("aiImageModel", aiImageModel_);
   ctx->setContextProperty("videoManager", videoManager_);
   ctx->setContextProperty("alarmManager", alarmManager_);
 

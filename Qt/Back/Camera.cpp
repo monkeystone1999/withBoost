@@ -88,36 +88,37 @@ void CameraModel::swapSlots(int indexA, int indexB) {
       indexB >= cameras_.size() || indexA == indexB)
     return;
 
-  // slotId/cropRect/splitCount/splitGroupId/splitIndex 는 "그리드 위치"의
-  // 속성이므로 그 자리에 유지한다. 영상 콘텐츠 속성만 교환한다.
   auto &a = cameras_[indexA];
   auto &b = cameras_[indexB];
-  std::swap(a.rtspUrl, b.rtspUrl);
+
+  // ── slotId 만 유지, 나머지 모든 content 필드를 교환 ─────────────────────
+  // 규칙: 각 Card는 Crop, CameraId(rtspUrl), Group 3가지를 가지며
+  //       Swap 시 이 3가지 전부를 교환함. Split ↔ 일반 swap 시 split 정보도
+  //       교환되어 상대 카드가 Split이 되고 기존 Split 카드는 일반이 됨.
   std::swap(a.title, b.title);
-  std::swap(a.cameraType, b.cameraType);
+  std::swap(a.rtspUrl, b.rtspUrl);
   std::swap(a.isOnline, b.isOnline);
+  std::swap(a.cameraType, b.cameraType);
   std::swap(a.description, b.description);
+  std::swap(a.splitCount, b.splitCount);
+  std::swap(a.splitDirection, b.splitDirection);
+  std::swap(a.cropRect, b.cropRect);
+  std::swap(a.splitGroupId, b.splitGroupId);
+  std::swap(a.splitIndex, b.splitIndex);
+  std::swap(a.width, b.width);
+  std::swap(a.height, b.height);
 
-  const auto idxA = createIndex(indexA, 0);
-  const auto idxB = createIndex(indexB, 0);
-  const QList<int> roles = {TitleRole, RtspUrlRole, IsOnlineRole,
-                            DescriptionRole, CameraTypeRole};
+  // splitGroupId 가 교환되었으므로 그룹 구조가 자동으로 재편성됨:
+  //   - slotId 는 유지 → CameraWindow 는 여전히 올바른 slot 을 팔로우
+  //   - 시블링 타일은 splitGroupId 로 멤버십을 판단하므로 별도 전파 불필요
 
-  // ────────────────────────────────────────────────────────────────────
-  // CRITICAL: 타이밍 역전 방지
-  //
-  // _emitSlotsUpdated()를 먼저 호출하여 m_slotToUrl을 갱신한 후,
-  // dataChanged를 emit하여 QML에 통보한다.
-  //
-  // dataChanged emit 시 QML 바인딩이 즉시 동기적으로 전파되어
-  // VideoSurface._tryAttach()가 호출된다.
-  // _tryAttach() 내부에서 getWorkerBySlot()을 호출할 때
-  // m_slotToUrl이 이미 올바른 상태여야 한다.
-  // ────────────────────────────────────────────────────────────────────
-  _emitSlotsUpdated();  // ← 먼저 실행: slotToUrl_ 갱신
+  const QList<int> allRoles = {TitleRole,       RtspUrlRole,       IsOnlineRole,
+                               DescriptionRole, CameraTypeRole,    CropRectRole,
+                               SplitCountRole,  SplitDirectionRole};
 
-  emit dataChanged(idxA, idxA, roles);  // ← 그 다음 QML 통보
-  emit dataChanged(idxB, idxB, roles);
+  _emitSlotsUpdated();
+  emit dataChanged(createIndex(indexA, 0), createIndex(indexA, 0), allRoles);
+  emit dataChanged(createIndex(indexB, 0), createIndex(indexB, 0), allRoles);
 }
 
 void CameraModel::setOnline(int index, bool online) {

@@ -151,30 +151,30 @@ Item {
                         font.pixelSize: 10
                     }
 
-                    // Canvas 기반 그래프 (CPU)
-                    DeviceGraph {
+                    // Canvas 기반 실시간 그래프 (CPU)
+                    LiveGraph {
                         Layout.fillWidth: true
                         height: 60
-                        label: "CPU"
+                        title: "CPU"
                         lineColor: "#44aaff"
-                        history: (root.selectedIp !== "" && typeof deviceModel !== "undefined") ? deviceModel.getHistory(root.selectedIp) : []
-                        historyField: "cpu"
+                        targetIp: root.selectedIp
+                        field: "cpu"
                     }
-                    DeviceGraph {
+                    LiveGraph {
                         Layout.fillWidth: true
                         height: 60
-                        label: "Mem"
+                        title: "Mem"
                         lineColor: "#44ff88"
-                        history: (root.selectedIp !== "" && typeof deviceModel !== "undefined") ? deviceModel.getHistory(root.selectedIp) : []
-                        historyField: "memory"
+                        targetIp: root.selectedIp
+                        field: "memory"
                     }
-                    DeviceGraph {
+                    LiveGraph {
                         Layout.fillWidth: true
                         height: 60
-                        label: "Temp"
+                        title: "Temp"
                         lineColor: "#ffaa44"
-                        history: (root.selectedIp !== "" && typeof deviceModel !== "undefined") ? deviceModel.getHistory(root.selectedIp) : []
-                        historyField: "temp"
+                        targetIp: root.selectedIp
+                        field: "temp"
                     }
                 }
 
@@ -411,20 +411,7 @@ Item {
         }
     }
 
-    // ── 주기적 히스토리 갱신 ──────────────────────────────────────────────────
-    Timer {
-        interval: 5000
-        running: root.selectedIp !== "" && root.visible && root.pageReady
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            // deviceModel.getHistory()는 항상 최신 데이터 반환
-            // DeviceGraph의 history 바인딩이 자동으로 갱신되도록 selectedIp 트리거
-            let ip = root.selectedIp;
-            root.selectedIp = "";
-            root.selectedIp = ip;
-        }
-    }
+    // (Removed Timer that was doing manual history refresh. LiveGraph handles it via signals.)
 
     // ── 상태 카드 컴포넌트 ────────────────────────────────────────────────────
     component StatusCard: Rectangle {

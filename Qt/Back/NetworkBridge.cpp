@@ -105,9 +105,9 @@ void NetworkBridge::connectToServer(const QString &host, const QString &port,
         Qt::QueuedConnection);
   };
 
-  cbs.onAssign = [this](const std::string &s) {
+  cbs.onImageReceived = [this](const std::vector<uint8_t> &data) {
     QMetaObject::invokeMethod(
-        this, [this, q = QString::fromStdString(s)] { emit assignReceived(q); },
+        this, [this, data] { emit imageResultReceived(data); },
         Qt::QueuedConnection);
   };
 

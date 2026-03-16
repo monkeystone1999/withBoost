@@ -6,8 +6,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS
-    Quick Svg Core Qml QuickControls2 Network ShaderTools
+    Quick Svg Core Qml QuickControls2 Network ShaderTools Multimedia
 )
+
 
 # ===== FFmpeg =====
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -82,6 +83,7 @@ target_link_libraries(AnoMap PRIVATE
     Qt6::Qml
     Qt6::Core
     Qt6::QuickControls2
+    Qt6::Multimedia
     QWindowKit::Quick
     BackEnd
     AnoMapSTD

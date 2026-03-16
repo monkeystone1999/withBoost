@@ -11,22 +11,19 @@ Window {
     visible: true
 
     Component.onCompleted: {
-        // Main 윗도우의 openCameraWindows 목록에 등록
-        if (typeof root.Window !== "undefined" && root.transientParent !== null && typeof root.transientParent.registerCameraWindow === "function") {
-            root.transientParent.registerCameraWindow(root);
-        }
+        if (typeof appController !== "undefined")
+            appController.registerCameraWindow(root);
     }
     Component.onDestruction: {
-        if (typeof root.transientParent !== "undefined" && root.transientParent !== null && typeof root.transientParent.unregisterCameraWindow === "function") {
-            root.transientParent.unregisterCameraWindow(root);
-        }
+        if (typeof appController !== "undefined")
+            appController.unregisterCameraWindow(root);
     }
 
     property int sourceSlotId: -1
     property string sourceTitle: ""
     property string sourceRtspUrl: ""
     property bool sourceOnline: false
-    property rect sourceCropRect: Qt.rect(0, 0, 1, 1)
+    property rect sourceCropRect: Qt.rect(0, 0, 1, 1)  // crop for split tiles
 
     property int updateTrigger: 0
 
@@ -45,9 +42,8 @@ Window {
             root.updateTrigger++;
         }
         function onDataChanged(topLeft, bottomRight) {
-            var slotRow = cameraModel.rowForSlot(root.sourceSlotId);
-            if (slotRow < topLeft.row || slotRow > bottomRight.row)
-                return;
+            // Always re-evaluate: model is small and QModelIndex.row
+            // comparisons can be unreliable in QML bindings.
             root.updateTrigger++;
         }
     }
@@ -72,6 +68,7 @@ Window {
             return sourceOnline;
         return cameraModel.isOnlineForSlot(root.sourceSlotId);
     }
+    // cropRect: swap 이후에도 모델에서 최신 cropRect를 반영
     property rect cropRect: {
         var dummy = updateTrigger;
         if (root.sourceSlotId < 0 || !cameraModel.hasSlot(root.sourceSlotId))

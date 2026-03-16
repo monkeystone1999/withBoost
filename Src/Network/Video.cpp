@@ -1,6 +1,4 @@
 ﻿#include "Video.hpp"
-#include "../Config.hpp"
-#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -155,7 +153,7 @@ bool Video::tryOnceFFmpeg(const std::string &url) {
           if (onFrameReady) {
             onFrameReady({targetFrame->data[0], targetFrame->data[1], srcW,
                           srcH, targetFrame->linesize[0],
-                          targetFrame->linesize[1], 0, 0});
+                          targetFrame->linesize[1]});
           }
         }
       }

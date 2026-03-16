@@ -35,7 +35,7 @@ qt_add_qml_module(FrontEnd
         Component/device/DeviceControlBar.qml
         Component/device/DeviceBadge.qml
         Component/device/DeviceControlPanel.qml
-        Component/device/DeviceGraph.qml
+        Component/device/LiveGraph.qml
         Component/user/UserCard.qml
         Theme/Icon.qml
         Theme/Theme.qml

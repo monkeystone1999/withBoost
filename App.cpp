@@ -13,7 +13,7 @@
 // ============================================================
 
 #include "Core.hpp"
-#include "Qt/Back/VideoSurfaceItem.hpp"
+#include "Qt/Back/VideoStream.hpp"
 #include <QGuiApplication>
 #include <QQmlAbstractUrlInterceptor>
 #include <QQmlApplicationEngine>
@@ -51,8 +51,8 @@ int main(int argc, char **argv) {
       &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
       [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
-  // VideoSurfaceItem is a QQuickItem — must be registered before QML load
-  qmlRegisterType<VideoSurfaceItem>("AnoMap.back", 1, 0, "VideoSurfaceItem");
+  // VideoStream is a QObject — must be registered before QML load
+  qmlRegisterType<VideoStream>("AnoMap.back", 1, 0, "VideoStream");
 
   // ── 3. Core: constructs everything, wires signals, registers QML props ─
   Core core;

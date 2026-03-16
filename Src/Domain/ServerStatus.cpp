@@ -1,4 +1,5 @@
 ﻿#include "ServerStatus.hpp"
+#include <chrono>
 #include <nlohmann/json.hpp>
 
 void ServerStatusStore::updateFromJson(const std::string &json, Callback cb) {
@@ -29,12 +30,21 @@ void ServerStatusStore::updateFromJson(const std::string &json, Callback cb) {
     s.memory = srv.value("memory", 0.0);
     s.temp = srv.value("temp", 0.0);
     s.uptime = srv.value("uptime", 0);
+    s.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::system_clock::now().time_since_epoch())
+                      .count();
     s.available = true;
   }
 
   {
     std::lock_guard<std::mutex> lk(mutex_);
     status_ = s;
+    if (s.available) {
+      history_.push_back(s);
+      if (history_.size() > 10) {
+        history_.erase(history_.begin());
+      }
+    }
   }
 
   if (cb)
@@ -46,31 +56,7 @@ ServerStatusData ServerStatusStore::snapshot() const {
   return status_;
 }
 
-double ServerStatusStore::deviceCpu(const std::string &ip) const {
+std::vector<ServerStatusData> ServerStatusStore::getHistory() const {
   std::lock_guard<std::mutex> lk(mutex_);
-  for (auto &d : status_.devices)
-    if (d.ip == ip)
-      return d.cpu;
-  return 0.0;
-}
-double ServerStatusStore::deviceMemory(const std::string &ip) const {
-  std::lock_guard<std::mutex> lk(mutex_);
-  for (auto &d : status_.devices)
-    if (d.ip == ip)
-      return d.memory;
-  return 0.0;
-}
-double ServerStatusStore::deviceTemp(const std::string &ip) const {
-  std::lock_guard<std::mutex> lk(mutex_);
-  for (auto &d : status_.devices)
-    if (d.ip == ip)
-      return d.temp;
-  return 0.0;
-}
-int ServerStatusStore::deviceUptime(const std::string &ip) const {
-  std::lock_guard<std::mutex> lk(mutex_);
-  for (auto &d : status_.devices)
-    if (d.ip == ip)
-      return d.uptime;
-  return 0;
+  return history_;
 }

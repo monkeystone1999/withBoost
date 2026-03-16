@@ -52,16 +52,19 @@ public:
                 int role = Qt::DisplayRole) const override;
   QHash<int, QByteArray> roleNames() const override;
 
-  // QML 조회
+  // QML에서 ip로 디바이스 상태 조회
+  Q_INVOKABLE int findIndexByIp(const QString &ip) const;
   Q_INVOKABLE bool hasDevice(const QString &ip) const;
   Q_INVOKABLE QString rtspUrl(const QString &ip) const;
   Q_INVOKABLE double cpu(const QString &ip) const;
   Q_INVOKABLE double memory(const QString &ip) const;
   Q_INVOKABLE double temp(const QString &ip) const;
-
-  // History lookup (max 20 entries)
   Q_INVOKABLE QVariantList getHistory(const QString &ip) const;
 
+signals:
+  void historyUpdated(const QString &ip);
+
+public:
   // rtspUrl-based lookup (for QML calls with RTSP URLs)
   Q_INVOKABLE QString deviceIp(const QString &rtspUrl) const;
   Q_INVOKABLE bool hasMotor(const QString &rtspUrl) const;
@@ -74,7 +77,6 @@ public slots:
   void onStoreUpdated(std::vector<DeviceIntegrated> snapshot);
 
 private:
-  int findIndexByIp(const QString &ip) const;
   int findIndexByRtspUrl(const QString &rtspUrl) const;
 
   QList<DeviceEntry> devices_;

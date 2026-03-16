@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import AnoMap.front
 import "../Layout"
 import "../Component/camera"
+import "../Component/device"
 
 Item {
     id: root
@@ -149,62 +150,102 @@ Item {
                         }
                     }
 
-                    // ── History List ─────────────────────────────────────
+                    // ── History List & Latest AI Image ─────────────────────────────────────
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         spacing: 12
 
                         Text {
-                            text: "Device History (Performance)"
+                            text: "Latest AI Detection"
                             color: Theme.fontColor
                             font.pixelSize: 14
                             font.bold: true
                         }
 
-                        ListView {
-                            id: historyList
+                        Rectangle {
                             Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            Layout.preferredHeight: width * 0.75
+                            color: Theme.isDark ? "#2d2d2d" : "#f5f5f7"
+                            radius: 6
                             clip: true
-                            spacing: 4
-                            model: root.historyData
 
-                            delegate: Rectangle {
-                                width: historyList.width
-                                height: 32
-                                color: Theme.isDark ? "#2d2d2d" : "#f5f5f7"
-                                radius: 4
+                            Image {
+                                id: latestAiImage
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                fillMode: Image.PreserveAspectFit
+                                source: ""
+                                visible: source !== ""
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 8
-                                    Text {
-                                        text: Qt.formatDateTime(new Date(modelData.timestamp), "hh:mm:ss")
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.preferredWidth: 60
+                                function updateImage() {
+                                    if (root.selectedIp !== "" && typeof aiImageModel !== "undefined") {
+                                        let evt = aiImageModel.getLatestEvent(root.selectedIp);
+                                        if (evt && evt.base64Image !== undefined && evt.base64Image !== "") {
+                                            latestAiImage.source = evt.base64Image;
+                                            return;
+                                        }
                                     }
-                                    Text {
-                                        text: "C: " + modelData.cpu.toFixed(1) + "%"
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.fillWidth: true
-                                    }
-                                    Text {
-                                        text: "M: " + modelData.memory.toFixed(1) + "%"
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.fillWidth: true
-                                    }
-                                    Text {
-                                        text: modelData.temp.toFixed(1) + "°C"
-                                        color: Theme.fontColor
-                                        font.pixelSize: 11
-                                        Layout.preferredWidth: 40
+                                    latestAiImage.source = "";
+                                }
+
+                                Component.onCompleted: updateImage()
+                            }
+
+                            Connections {
+                                target: typeof aiImageModel !== "undefined" ? aiImageModel : null
+                                function onAiEventReceived(ip) {
+                                    if (ip === root.selectedIp) {
+                                        latestAiImage.updateImage();
                                     }
                                 }
                             }
+
+                            Connections {
+                                target: root
+                                function onSelectedIpChanged() {
+                                    latestAiImage.updateImage();
+                                }
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "No Recent AI Detection"
+                                color: Theme.isDark ? "#555" : "#aaa"
+                                visible: latestAiImage.source == ""
+                            }
+                        }
+
+                        Text {
+                            text: "Device Performance"
+                            color: Theme.fontColor
+                            font.pixelSize: 14
+                            font.bold: true
+                        }
+
+                        LiveGraph {
+                            Layout.fillWidth: true
+                            height: 60
+                            title: "CPU"
+                            lineColor: "#44aaff"
+                            targetIp: root.selectedIp
+                            field: "cpu"
+                        }
+                        LiveGraph {
+                            Layout.fillWidth: true
+                            height: 60
+                            title: "Mem"
+                            lineColor: "#44ff88"
+                            targetIp: root.selectedIp
+                            field: "memory"
+                        }
+                        LiveGraph {
+                            Layout.fillWidth: true
+                            height: 60
+                            title: "Temp"
+                            lineColor: "#ffaa44"
+                            targetIp: root.selectedIp
+                            field: "temp"
                         }
                     }
                 }
@@ -220,20 +261,7 @@ Item {
         }
     }
 
-    // ── Logic: Periodic History Fetch ────────────────────────────────────────
-    Timer {
-        interval: 5000
-        running: !!root.selectedIp && root.visible
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            root.historyData = deviceModel.getHistory(root.selectedIp);
-        }
-    }
-
-    onSelectedIpChanged: {
-        root.historyData = deviceModel.getHistory(root.selectedIp);
-    }
+    // (Removed manual Timer polling. Relies on LiveGraph and AiImageModel signal updates)
 
     // ── Shared Component (StatusCard) ────────────────────────────────────────
     component StatusCard: Rectangle {

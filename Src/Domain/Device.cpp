@@ -70,10 +70,10 @@ void DeviceStore::updateFromCameraJson(const std::string &json, Callback cb) {
     }
 
     devices_ = merged;
-  }
+  } // lock released here — snapshot() must be called outside the lock
 
   if (cb)
-    cb(snapshot());
+    cb(std::move(merged)); // pass the already-built copy; avoids re-locking
 }
 
 // --- AVAILABLE packet processing (Dynamic info + History) ---
@@ -89,52 +89,57 @@ void DeviceStore::updateFromAvailableJson(const std::string &json,
                              now.time_since_epoch())
                              .count();
 
-  std::lock_guard<std::mutex> lk(mutex_);
+  std::vector<DeviceIntegrated> snap;
+  {
+    std::lock_guard<std::mutex> lk(mutex_);
 
-  if (parsed.contains("devices") && parsed["devices"].is_array()) {
-    for (const auto &item : parsed["devices"]) {
-      if (!item.is_object())
-        continue;
+    if (parsed.contains("devices") && parsed["devices"].is_array()) {
+      for (const auto &item : parsed["devices"]) {
+        if (!item.is_object())
+          continue;
 
-      std::string ip = item.value("ip", "");
-      if (ip.empty())
-        continue;
+        std::string ip = item.value("ip", "");
+        if (ip.empty())
+          continue;
 
-      // Find existing device
-      int idx = findIndexByIp(ip);
-      DeviceIntegrated *device = nullptr;
+        // Find existing device
+        int idx = findIndexByIp(ip);
+        DeviceIntegrated *device = nullptr;
 
-      if (idx >= 0) {
-        device = &devices_[idx];
-      } else {
-        // Temporary new device entry if CAMERA packet arrives later
-        DeviceIntegrated newDev;
-        newDev.ip = ip;
-        devices_.push_back(newDev);
-        device = &devices_.back();
+        if (idx >= 0) {
+          device = &devices_[idx];
+        } else {
+          // Temporary new device entry if CAMERA packet arrives later
+          DeviceIntegrated newDev;
+          newDev.ip = ip;
+          devices_.push_back(newDev);
+          device = &devices_.back();
+        }
+
+        // Update Dynamic info
+        device->cpu = item.value("cpu", 0.0);
+        device->memory = item.value("memory", 0.0);
+        device->temp = item.value("temp", 0.0);
+        device->uptime = item.value("uptime", 0);
+        device->lastUpdate = timestamp;
+
+        // Add Snapshot to history
+        DeviceSnapshot s;
+        s.timestamp = timestamp;
+        s.cpu = device->cpu;
+        s.memory = device->memory;
+        s.temp = device->temp;
+        s.uptime = device->uptime;
+
+        addSnapshot(*device, s);
       }
-
-      // Update Dynamic info
-      device->cpu = item.value("cpu", 0.0);
-      device->memory = item.value("memory", 0.0);
-      device->temp = item.value("temp", 0.0);
-      device->uptime = item.value("uptime", 0);
-      device->lastUpdate = timestamp;
-
-      // Add Snaphot to history
-      DeviceSnapshot snap;
-      snap.timestamp = timestamp;
-      snap.cpu = device->cpu;
-      snap.memory = device->memory;
-      snap.temp = device->temp;
-      snap.uptime = device->uptime;
-
-      addSnapshot(*device, snap);
     }
-  }
+
+    snap = devices_; // copy while holding lock
+  } // lock released here — callback must NOT hold the lock
 
   if (cb)
-    cb(snapshot());
+    cb(std::move(snap));
 }
 
 void DeviceStore::addSnapshot(DeviceIntegrated &device,

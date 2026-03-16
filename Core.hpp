@@ -39,6 +39,7 @@ class ServerStatusModel;
 class UserModel;
 class VideoManager;
 class AlarmManager;
+class AiImageModel;
 
 class Core {
 public:
@@ -78,6 +79,7 @@ private:
   UserModel *userModel_ = nullptr;
   VideoManager *videoManager_ = nullptr;
   AlarmManager *alarmManager_ = nullptr;
+  AiImageModel *aiImageModel_ = nullptr;
 
   AppController *appController_ = nullptr;
   AlarmController *alarmController_ = nullptr;

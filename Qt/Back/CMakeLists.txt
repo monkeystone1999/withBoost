@@ -10,8 +10,9 @@ qt_add_library(BackEnd STATIC
     Device.hpp
     Device.cpp
     # ── 네트워크 브릿지 ─────────────────────────────────────────────────────
-    NetworkBridge.hpp
-    NetworkBridge.cpp
+    NetworkBridge.hpp NetworkBridge.cpp
+    ServerStatus.hpp ServerStatus.cpp
+    AiImageModel.hpp AiImageModel.cpp
     # ── 알람 ────────────────────────────────────────────────────────────────
     AlarmManager.hpp
     AlarmManager.cpp
@@ -26,19 +27,12 @@ qt_add_library(BackEnd STATIC
     # ── 비디오 파이프라인 ────────────────────────────────────────────────────
     VideoStream.hpp
     VideoStream.cpp
-    VideoFrameTexture.hpp
-    VideoFrameTexture.cpp
-    VideoSurfaceItem.hpp
-    VideoSurfaceItem.cpp
     # ── 서버 상태 ────────────────────────────────────────────────────────────
     ServerStatus.hpp
     ServerStatus.cpp
     # ── 유저 모델 ────────────────────────────────────────────────────────────
     UserModel.cpp
     UserModel.hpp
-    # ── DeviceGraph QQuickItem (신규) ────────────────────────────────────────
-    DeviceGraphItem.hpp
-    DeviceGraphItem.cpp
 )
 
 
@@ -50,9 +44,11 @@ target_link_libraries(BackEnd PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Quick
+    Qt6::Multimedia
     Qt6::GuiPrivate
     AnoMapSTD
 )
+
 
 target_include_directories(BackEnd PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src

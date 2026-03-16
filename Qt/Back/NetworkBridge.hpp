@@ -52,7 +52,7 @@ signals:
   void cameraListReceived(QString json); // raw JSON forwarded to Core
   void deviceStatusReceived(QString json);
   void aiResultReceived(QString json);
-  void assignReceived(QString json);
+  void imageResultReceived(const std::vector<uint8_t> &payload);
 
 private:
   INetworkService *service_; // non-owning

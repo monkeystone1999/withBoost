@@ -24,6 +24,21 @@ void ServerStatusModel::onStoreUpdated(ServerStatusData data) {
   server_.temp = data.temp;
   server_.uptime = data.uptime;
   server_.available = data.available;
+  server_.timestamp = data.timestamp;
+
+  if (server_.available) {
+    QVariantMap item;
+    item["timestamp"] = server_.timestamp;
+    item["cpu"] = server_.cpu;
+    item["memory"] = server_.memory;
+    item["temp"] = server_.temp;
+    item["uptime"] = server_.uptime;
+
+    serverHistory_.append(QVariant(item));
+    if (serverHistory_.size() > 60) {
+      serverHistory_.removeFirst();
+    }
+  }
 
   qDebug() << "[ServerStatusModel] onStoreUpdated, devices:" << devices_.size()
            << "hasServer:" << server_.available;
@@ -54,4 +69,8 @@ int ServerStatusModel::deviceUptime(const QString &ip) const {
     if (d.ip == ip)
       return d.uptime;
   return 0;
+}
+
+QVariantList ServerStatusModel::getServerHistory() const {
+  return serverHistory_;
 }

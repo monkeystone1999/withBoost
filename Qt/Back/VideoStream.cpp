@@ -1,7 +1,6 @@
 ﻿#include "VideoStream.hpp"
 #include <QDebug>
 #include <QMetaObject>
-#include <libyuv.h>
 
 VideoWorker::VideoWorker(const QString &rtspUrl, QObject *parent)
     : QObject(parent), rtspUrl_(rtspUrl), video_(std::make_unique<Video>()) {
@@ -13,40 +12,46 @@ VideoWorker::VideoWorker(const QString &rtspUrl, QObject *parent)
 
     int w = payload.width;
     int h = payload.height;
-    int rgbaStride = w * 4;
-    int requiredSize = rgbaStride * h;
 
-    if (workingBuffer_.size() < requiredSize) {
-      workingBuffer_.resize(requiredSize);
+    QVideoFrameFormat format(QSize(w, h), QVideoFrameFormat::Format_NV12);
+    QVideoFrame frame(format);
+
+    if (frame.map(QVideoFrame::WriteOnly)) {
+      int y_size = w * h;
+      int uv_size = w * h / 2;
+
+      // Copy Y plane
+      // Since NV12 Y-stride == width, we can use simple memcpy if stride
+      // matches exactly, but if padding exists, we should loop.
+      if (payload.strideY == w) {
+        std::memcpy(frame.bits(0), payload.dataY, y_size);
+      } else {
+        for (int i = 0; i < h; ++i) {
+          std::memcpy(frame.bits(0) + (i * w),
+                      payload.dataY + (i * payload.strideY), w);
+        }
+      }
+
+      // Copy UV plane
+      if (payload.strideUV == w) {
+        std::memcpy(frame.bits(1), payload.dataUV, uv_size);
+      } else {
+        for (int i = 0; i < h / 2; ++i) {
+          std::memcpy(frame.bits(1) + (i * w),
+                      payload.dataUV + (i * payload.strideUV), w);
+        }
+      }
+
+      frame.unmap();
+      frameSeq_.fetch_add(1, std::memory_order_release);
+
+      if (!loggedFrameInfo_.load()) {
+        loggedFrameInfo_.store(true);
+        qWarning() << "[VideoWorker] NV12 mapped frame w=" << w << "h=" << h;
+      }
+
+      emit frameReady(frame);
     }
-
-    const uint8_t *srcY = payload.dataY;
-    const uint8_t *srcUV = payload.dataUV;
-    uint8_t *dstRGBA = reinterpret_cast<uint8_t *>(workingBuffer_.data());
-
-    libyuv::NV12ToABGR(srcY, payload.strideY, srcUV, payload.strideUV, dstRGBA,
-                       rgbaStride, w, h);
-
-    auto emitBuf = std::make_shared<QByteArray>(
-        workingBuffer_); // Re-use the underlying array via copy, or just
-                         // construct anew (still cheaper than vector)
-
-    atomicBuffer_.store(emitBuf, std::memory_order_release);
-    atomicWidth_.store(w, std::memory_order_relaxed);
-    atomicHeight_.store(h, std::memory_order_relaxed);
-    atomicStrideY_.store(rgbaStride, std::memory_order_relaxed);
-    atomicStrideUV_.store(0, std::memory_order_relaxed);
-    atomicOffsetUV_.store(0, std::memory_order_relaxed);
-    atomicFormat_.store(1, std::memory_order_relaxed); // 1 = RGBA
-    frameSeq_.fetch_add(1, std::memory_order_release);
-
-    if (!loggedFrameInfo_.load()) {
-      loggedFrameInfo_.store(true);
-      qWarning() << "[VideoWorker] libyuv converted frame w=" << w << "h=" << h
-                 << "rgba_stride=" << rgbaStride;
-    }
-
-    emit frameReady();
   };
 }
 
@@ -54,22 +59,6 @@ VideoWorker::~VideoWorker() { stopStream(); }
 
 void VideoWorker::startStream() { video_->startStream(rtspUrl_.toStdString()); }
 void VideoWorker::stopStream() { video_->stopStream(); }
-
-VideoWorker::FrameData VideoWorker::getLatestFrame() const {
-  FrameData f;
-  f.buffer = atomicBuffer_.load(std::memory_order_acquire);
-  f.width = atomicWidth_.load(std::memory_order_relaxed);
-  f.height = atomicHeight_.load(std::memory_order_relaxed);
-  f.strideY = atomicStrideY_.load(std::memory_order_relaxed);
-  f.strideUV = atomicStrideUV_.load(std::memory_order_relaxed);
-  f.offsetUV = atomicOffsetUV_.load(std::memory_order_relaxed);
-  f.format = atomicFormat_.load(std::memory_order_relaxed);
-
-  if (!f.buffer) {
-    qDebug() << "[VideoWorker] getLatestFrame() called but buffer is null.";
-  }
-  return f;
-}
 
 VideoManager::VideoManager(QObject *parent) : QObject(parent) {}
 
@@ -138,5 +127,97 @@ void VideoManager::restartWorker(const QString &rtspUrl) {
     worker->stopStream();
     worker->startStream();
     emit workerRegistered(rtspUrl);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// VideoStream (QML <-> VideoWorker Bridge)
+// ────────────────────────────────────────────────────────────────────────
+
+extern VideoManager *videoManager; // Required to fetch the worker
+
+VideoStream::VideoStream(QObject *parent) : QObject(parent) {}
+
+VideoStream::~VideoStream() {
+  // Qt automatically disconnects signals/slots when a QObject is destroyed.
+  // Manually disconnecting here risks dangling pointer crashes.
+}
+
+void VideoStream::setVideoSink(QVideoSink *sink) {
+  if (m_videoSink != sink) {
+    m_videoSink = sink;
+    emit videoSinkChanged();
+  }
+}
+
+void VideoStream::setSlotId(int id) {
+  if (m_slotId != id) {
+    m_slotId = id;
+    emit slotIdChanged();
+    tryAttach();
+  }
+}
+
+void VideoStream::setRtspUrl(const QString &url) {
+  if (m_rtspUrl != url) {
+    m_rtspUrl = url;
+    emit rtspUrlChanged();
+    tryAttach();
+  }
+}
+
+void VideoStream::tryAttach() {
+  if (!videoManager)
+    return; // Wait until initialized
+
+  VideoWorker *newWorker = nullptr;
+  if (m_slotId >= 0) {
+    newWorker = videoManager->getWorkerBySlot(m_slotId);
+    if (!newWorker && !m_rtspUrl.isEmpty()) {
+      newWorker = videoManager->getWorker(m_rtspUrl);
+    }
+  } else if (!m_rtspUrl.isEmpty()) {
+    newWorker = videoManager->getWorker(m_rtspUrl);
+  }
+
+  if (newWorker != m_worker) {
+    if (!m_worker.isNull()) {
+      disconnect(m_worker.data(), &VideoWorker::frameReady, this,
+                 &VideoStream::handleNewFrame);
+    }
+    m_worker = newWorker;
+    if (m_worker) {
+      connect(m_worker, &VideoWorker::frameReady, this,
+              &VideoStream::handleNewFrame, Qt::QueuedConnection);
+    } else {
+      // Listen for registration
+      connect(videoManager, &VideoManager::workerRegistered, this,
+              &VideoStream::onWorkerRegistered, Qt::UniqueConnection);
+    }
+  }
+}
+
+void VideoStream::onWorkerRegistered(const QString &url) {
+  if (!videoManager)
+    return;
+  bool isTarget = false;
+  if (m_slotId >= 0) {
+    isTarget = (videoManager->slotUrl(m_slotId) == url);
+  } else {
+    isTarget = (m_rtspUrl == url);
+  }
+
+  if (isTarget) {
+    if (videoManager) {
+      disconnect(videoManager, &VideoManager::workerRegistered, this,
+                 &VideoStream::onWorkerRegistered);
+    }
+    tryAttach();
+  }
+}
+
+void VideoStream::handleNewFrame(const QVideoFrame &frame) {
+  if (m_videoSink) {
+    m_videoSink->setVideoFrame(frame);
   }
 }

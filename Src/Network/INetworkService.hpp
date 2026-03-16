@@ -1,7 +1,8 @@
 ﻿#pragma once
-#include <functional>
 #include <cstdint>
+#include <functional>
 #include <string>
+#include <vector>
 
 // ============================================================
 //  INetworkService — Pure interface for TCP network operations
@@ -15,24 +16,24 @@
 // ============================================================
 
 struct NetworkCallbacks {
-    std::function<void()>                    onConnected;
-    std::function<void(const std::string &)> onLoginResult;   // SUCCESS body
-    std::function<void(const std::string &)> onLoginFail;     // FAIL body
-    std::function<void(const std::string &)> onCameraList;    // CAMERA body
-    std::function<void(const std::string &)> onDeviceStatus;  // DEVICE body
-    std::function<void(const std::string &)> onAiResult;      // AI body
-    std::function<void(const std::string &)> onAssign;        // ASSIGN body
+  std::function<void()> onConnected;
+  std::function<void(const std::string &)> onLoginResult;  // SUCCESS body
+  std::function<void(const std::string &)> onLoginFail;    // FAIL body
+  std::function<void(const std::string &)> onCameraList;   // CAMERA body
+  std::function<void(const std::string &)> onDeviceStatus; // DEVICE body
+  std::function<void(const std::string &)> onAiResult;     // AI body
+  std::function<void(const std::string &)> onAssign;       // ASSIGN body
+  std::function<void(const std::vector<uint8_t> &)>
+      onImageReceived; // IMAGE body
 };
 
 class INetworkService {
 public:
-    virtual ~INetworkService() = default;
+  virtual ~INetworkService() = default;
 
-    virtual void connect   (const std::string &host,
-                            const std::string &port,
-                            NetworkCallbacks   callbacks) = 0;
-    virtual void disconnect() = 0;
-    virtual void send      (uint8_t            messageType,
-                            const std::string &jsonBody) = 0;
-    virtual bool isConnected() const = 0;
+  virtual void connect(const std::string &host, const std::string &port,
+                       NetworkCallbacks callbacks) = 0;
+  virtual void disconnect() = 0;
+  virtual void send(uint8_t messageType, const std::string &jsonBody) = 0;
+  virtual bool isConnected() const = 0;
 };

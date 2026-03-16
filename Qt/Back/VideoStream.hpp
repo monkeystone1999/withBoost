@@ -6,50 +6,33 @@
 #include <QList>
 #include <QMap>
 #include <QObject>
+#include <QPointer>
 #include <QStringList>
+#include <QVideoFrame>
+#include <QVideoFrameFormat>
+#include <QVideoSink>
 #include <atomic>
-#include <memory>
+#include <mutex>
 
 class VideoWorker : public QObject {
   Q_OBJECT
 public:
-  struct FrameData {
-    std::shared_ptr<QByteArray> buffer;
-    int width = 0;
-    int height = 0;
-    int strideY = 0;
-    int strideUV = 0;
-    int offsetUV = 0;
-    int format = 0;
-  };
-
   explicit VideoWorker(const QString &rtspUrl, QObject *parent = nullptr);
   ~VideoWorker() override;
 
   void startStream();
   void stopStream();
 
-  FrameData getLatestFrame() const;
-
   uint64_t frameSeq() const {
     return frameSeq_.load(std::memory_order_acquire);
   }
 
 signals:
-  void frameReady();
+  void frameReady(const QVideoFrame &frame);
 
 private:
   QString rtspUrl_;
   std::unique_ptr<Video> video_;
-  QByteArray workingBuffer_;
-
-  std::atomic<std::shared_ptr<QByteArray>> atomicBuffer_;
-  std::atomic<int> atomicWidth_{0};
-  std::atomic<int> atomicHeight_{0};
-  std::atomic<int> atomicStrideY_{0};
-  std::atomic<int> atomicStrideUV_{0};
-  std::atomic<int> atomicOffsetUV_{0};
-  std::atomic<int> atomicFormat_{0}; // 0 = NV12, 1 = RGBA
   std::atomic<uint64_t> frameSeq_{0};
   std::atomic<bool> loggedFrameInfo_{false};
 };
@@ -77,4 +60,42 @@ signals:
 private:
   QMap<QString, VideoWorker *> workers_;
   QMap<int, QString> slotToUrl_;
+};
+
+class VideoStream : public QObject {
+  Q_OBJECT
+  Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY
+                 videoSinkChanged)
+  Q_PROPERTY(int slotId READ slotId WRITE setSlotId NOTIFY slotIdChanged)
+  Q_PROPERTY(
+      QString rtspUrl READ rtspUrl WRITE setRtspUrl NOTIFY rtspUrlChanged)
+
+public:
+  explicit VideoStream(QObject *parent = nullptr);
+  ~VideoStream() override;
+
+  QVideoSink *videoSink() const { return m_videoSink; }
+  void setVideoSink(QVideoSink *sink);
+
+  int slotId() const { return m_slotId; }
+  void setSlotId(int id);
+
+  QString rtspUrl() const { return m_rtspUrl; }
+  void setRtspUrl(const QString &url);
+
+signals:
+  void videoSinkChanged();
+  void slotIdChanged();
+  void rtspUrlChanged();
+
+private slots:
+  void tryAttach();
+  void onWorkerRegistered(const QString &url);
+  void handleNewFrame(const QVideoFrame &frame);
+
+private:
+  QVideoSink *m_videoSink = nullptr;
+  int m_slotId = -1;
+  QString m_rtspUrl;
+  QPointer<VideoWorker> m_worker;
 };

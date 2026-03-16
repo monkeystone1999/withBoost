@@ -58,7 +58,7 @@ Item {
                 rtspUrl: model.rtspUrl
                 isOnline: model.isOnline
                 slotId: model.slotId
-                cropRect: model.cropRect
+                cropRect: model.cropRect || Qt.rect(0, 0, 1, 1)
 
                 showActionIcon: typeof deviceModel !== "undefined" && deviceModel.hasDeviceByUrl(model.rtspUrl)
                 highlightOnHover: root.activeCtrlUrl === model.rtspUrl
@@ -141,7 +141,7 @@ Item {
                         // Ghost가 Page에 있으니 drop() 호출은 Page의 상태에 의존.
                         // "카드 드래그 밖으로 나감" 판정 로직을 Page로 위임한다.
                         const pos = delegateRoot.mapToItem(root, centroid.position.x, centroid.position.y);
-                        root.dragEndedOutside(delegateRoot.modelIndex, model.slotId, model.title, model.rtspUrl, model.isOnline, model.cropRect, pos.x, pos.y);
+                        root.dragEndedOutside(delegateRoot.modelIndex, model.slotId, model.title, model.rtspUrl, model.isOnline, model.cropRect || Qt.rect(0, 0, 1, 1), pos.x, pos.y);
                     }
                 }
             }

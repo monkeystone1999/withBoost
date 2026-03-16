@@ -1,7 +1,9 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import AnoMap.front
 import "../Layout"
+import "../Component/device"
 
 // ══════════════════════════════════════════════════════════════════════════════
 // AdminPage — Admin 전용 사용자 관리 페이지
@@ -58,9 +60,48 @@ Item {
             }
         }
 
+        // ── Server Status Graphs ────────────────────────────────────────
+        Row {
+            id: serverGraphs
+            anchors.top: header.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 20
+            height: 140
+            spacing: 20
+
+            LiveGraph {
+                width: (parent.width - 40) / 3
+                height: parent.height
+                title: "Server CPU"
+                unit: "%"
+                field: "cpu"
+                isServer: true
+                lineColor: "#ff4444"
+            }
+            LiveGraph {
+                width: (parent.width - 40) / 3
+                height: parent.height
+                title: "Server Memory"
+                unit: "%"
+                field: "memory"
+                isServer: true
+                lineColor: "#44cc44"
+            }
+            LiveGraph {
+                width: (parent.width - 40) / 3
+                height: parent.height
+                title: "Server Temp"
+                unit: "°C"
+                field: "temp"
+                isServer: true
+                lineColor: "#ffaa00"
+            }
+        }
+
         // ── User List ───────────────────────────────────────────────────
         UserListLayout {
-            anchors.top: header.bottom
+            anchors.top: serverGraphs.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom

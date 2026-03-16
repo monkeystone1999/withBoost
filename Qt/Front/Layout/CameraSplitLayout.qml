@@ -57,7 +57,6 @@ Item {
                     rtspUrl: model.rtspUrl
                     isOnline: model.isOnline
                     slotId: model.slotId
-                    cropRect: model.cropRect
 
                     showActionIcon: true
                     actionIconText: root.pageType === "AI" ? "AI" : "⚙"

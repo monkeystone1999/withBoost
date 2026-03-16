@@ -3,6 +3,9 @@
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QVariant>
+#include <QVariantList>
+#include <QVariantMap>
 #include <vector>
 
 struct DeviceStatus {
@@ -20,6 +23,7 @@ struct ServerStatus {
   double temp = 0;
   int uptime = 0;
   bool available = false; // "server" 키가 있을 때만 true (admin)
+  long long timestamp = 0;
 };
 
 class ServerStatusModel : public QObject {
@@ -43,6 +47,9 @@ public:
   Q_INVOKABLE double deviceTemp(const QString &ip) const;
   Q_INVOKABLE int deviceUptime(const QString &ip) const;
 
+  // QML에서 서버 히스토리 반환 (Canvas Graph용)
+  Q_INVOKABLE QVariantList getServerHistory() const;
+
 public slots:
   // Called by Core (GUI thread) with pre-parsed snapshot — no JSON
   void onStoreUpdated(ServerStatusData data);
@@ -53,4 +60,5 @@ signals:
 private:
   ServerStatus server_;
   QList<DeviceStatus> devices_;
+  QVariantList serverHistory_;
 };

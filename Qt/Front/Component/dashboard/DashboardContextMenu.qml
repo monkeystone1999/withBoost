@@ -79,11 +79,6 @@ Rectangle {
             itemEnabled: root.targetSplit === 1 && root.targetOnline
             onTriggered: root.splitRequested(root.targetIndex, 3, 0)
         }
-        CtxItem {
-            label: "Col-4"
-            itemEnabled: root.targetSplit === 1 && root.targetOnline
-            onTriggered: root.splitRequested(root.targetIndex, 4, 0)
-        }
         Rectangle {
             width: parent.width - 12
             height: 1

@@ -70,5 +70,5 @@ private:
   mutable std::mutex mutex_;
   std::vector<DeviceIntegrated> devices_;
 
-  static constexpr size_t MAX_HISTORY = 20;
+  static constexpr size_t MAX_HISTORY = 60;
 };

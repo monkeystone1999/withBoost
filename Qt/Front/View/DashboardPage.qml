@@ -226,8 +226,9 @@ Item {
     function tryDetachWindow(sourceIndex, slotId, title, url, isOnline, cropRect, globalX, globalY) {
         const comp = Qt.createComponent("../Component/camera/CameraWindow.qml");
         if (comp.status === Component.Ready) {
-            const win = comp.createObject(root, {
-                transientParent: root.Window.window,
+            // Use null parent so the window is NOT destroyed when this page
+            // is replaced by StackView.replace(). appController holds the ref.
+            const win = comp.createObject(null, {
                 sourceSlotId: slotId,
                 sourceTitle: title,
                 sourceRtspUrl: url,

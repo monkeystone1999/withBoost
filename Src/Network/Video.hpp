@@ -24,8 +24,6 @@ public:
     int height = 0;
     int strideY = 0;
     int strideUV = 0;
-    int offsetUV = 0;
-    int format = 0; // 0: NV12, 1: RGBA
   };
 
   using FrameCallback = std::function<void(const FramePayload &)>;
@@ -45,7 +43,6 @@ private:
 
   std::thread decodeThread_;
   std::atomic<bool> stopThread_{false};
-  bool loggedFrameInfo_{false};
 
   // Frame timing
   std::chrono::steady_clock::time_point lastFrameTime_;
