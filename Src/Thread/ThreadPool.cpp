@@ -1,32 +1,27 @@
 #include "ThreadPool.hpp"
 
-ThreadPool::ThreadPool(size_t size) : stop_(false) {
-  for (size_t i = 0; i < size; ++i) {
-    pool_.emplace_back([this] { worker_loop(); });
-  }
-}
-
-ThreadPool::~ThreadPool() {
+void ThreadPool::Submit(std::function<void()> task) {
   {
-    std::unique_lock<std::mutex> lock(mutex_);
-    stop_ = true;
+    std::scoped_lock<std::mutex> lock(mutex_);
+    queue_.emplace(std::move(task));
   }
-  cv_.notify_all();
-  for (auto &ele : pool_) {
-    ele.join();
-  }
+  cv_.notify_one();
 }
 
-void ThreadPool::worker_loop() {
+void ThreadPool::WorkLoop() {
   while (true) {
     std::function<void()> task;
     {
-      std::unique_lock<std::mutex> lock(mutex_);
-      cv_.wait(lock, [this] { return stop_ || !tasks_.empty(); });
-      if (stop_ && tasks_.empty())
+      std::unique_lock lock(mutex_);
+      // stop_ 이고 큐가 비어 있으면 종료
+      // 큐에 남은 태스크가 있으면 drain 후 종료
+      cv_.wait(lock, [this] { return stop_ || !queue_.empty(); });
+
+      if (stop_ && queue_.empty())
         return;
-      task = std::move(tasks_.front());
-      tasks_.pop();
+
+      task = std::move(queue_.front());
+      queue_.pop();
     }
     task();
   }
