@@ -16,7 +16,8 @@ enum class MessageType : uint8_t {
   CAMERA = 0x07,
   ASSIGN = 0x08,
   META = 0x09,
-  IMAGE = 0x0a
+  IMAGE = 0x0a,
+  TLS_HANDSHAKE = 0x0b
 };
 
 struct Message {
@@ -27,7 +28,7 @@ struct Message {
 
 #pragma pack(push, 1)
 struct PacketHeader {
-  uint8_t type;
+  MessageType type;
   uint32_t length;
 };
 #pragma pack(pop)

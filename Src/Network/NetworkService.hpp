@@ -4,6 +4,7 @@
 #include "TcpSession.hpp"
 #include <atomic>
 #include <boost/asio.hpp>
+#include <boost/asio/strand.hpp>
 #include <memory>
 #include <thread>
 
@@ -38,6 +39,8 @@ private:
   std::unique_ptr<
       boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>
       work_guard_;
+  std::unique_ptr<boost::asio::strand<boost::asio::io_context::executor_type>>
+      strand_;
   std::thread io_thread_;
   std::atomic<bool> connected_{false};
   std::string sessionName_;
