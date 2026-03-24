@@ -4,7 +4,7 @@
 void AlarmDispatcher::dispatch(const std::string &json, Callback cb) {
   if (!cb)
     return;
-  pool_.submit([json, cb = std::move(cb)]() {
+  pool_.Submit([json, cb = std::move(cb)]() {
     auto parsed = nlohmann::json::parse(json, nullptr, false);
     if (!parsed.is_object())
       return;

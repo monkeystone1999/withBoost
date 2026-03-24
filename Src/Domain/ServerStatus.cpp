@@ -60,3 +60,9 @@ std::vector<ServerStatusData> ServerStatusStore::getHistory() const {
   std::lock_guard<std::mutex> lk(mutex_);
   return history_;
 }
+
+void ServerStatusStore::clear() {
+  std::lock_guard<std::mutex> lk(mutex_);
+  status_ = ServerStatusData{};
+  history_.clear();
+}

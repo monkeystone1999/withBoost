@@ -1,8 +1,26 @@
-1. Group은 Merge 시 무조건 필요함, 허나 모든 CameraCard 는 Crop 정보와 각 CameraID 를 기반으로 동작하게 함 CameraWindow 하고 Synchronized 가 안되고 있음, Dashboard 의 CameraCard 의 정보가 바뀌면 CameraWindow 의 정보는 자동으로 CameraCard 와 Synchronize 되어서 바뀌어야함. Split 을 한 CameraCard 에 Split 되지 않은 다른 CameraCard 와 Swap 시 split 의 정보들 마저 교환이 되어서 다른 CameraCard 가 Split 이 되어버리고 기존의 CameraCard 의 Split 은 Split 되지 않은 다른 CameraCard 처럼 변해버림.
-2. adminpage 의 Graph 는 나오는데 buffer 에 있는 값을 전부 출력하는 것이 아닌 가장 최근 값만 출력하게끔 되어있음 모든 기록을 Graph 로 표현 DevicePage 의 Graph 도 Buffer 에 있는 모든 값을 출력하는지지 확인
+ 1. Image 를 받을 것임 한번에 5개가 연속해서 들어옴 각 Image 를 나누는 기준은 Frame Index 로 구분을 함 매 Image 마다의 들어오는 값은 이러함
+ 0a 88 00 00 00 <- 이게 들어온다 PacketHeader 를 보면 0a = IMAGE Type 이고 나머지는 Length 인 것을 볼 수 있다. 그리고 이미지 값들이 들어온다 일단 ip 를 기점으로 camera id 에 맞게 queue 형태로 집어넣는다. 그리고 UI 에 표현이 가능해야함 최대 20개까지 가능해야하고 
+Time Stamp 를 찍어야하는데 Qt 에서 시간을 찍어서 Frame 위에 표현하고 AI Page 의 WheelHandler 에 쭉 나열을 할 것임 주석에 있는 내용처럼 // Wheel scroll: up=newer, down=older
+본디 Header 를 읽고 Body 읽고 끝나는 흐름과는 다르게 동작을 하는데 Header -> Header -> Body 이런식에 가깝다. 첫번째 0a 88 00 00 00 이 값은 {"device_id":"SubPi_192.168.0.43","frame_index":0,"ip":"192.168.0.43","jpeg_size":25120,"timestamp_ms":8,"total_frames":5,"track_id":1} 이 json 형태의 크기를 의미하고 jpeg_size 가 Byte 단위의 추후에 들어오는 데이터들의 양을 의미한다.
 
-CameraCard 의 동작과 CameraWindow 의 동작은 이걸 지켜야함
-Group과 Split 을 떠나서 모든 Card 는 서로서로 Swap 이 가능해야함
-그렇기에 각 Card 는 Crop 이 되는 위치와 CameraId, group 을 가지고 있음
-Card 가 swap 이 된다면 Crop, CameraId, Group 3가지 전부 swap 을 실행을 함
-Card 가 바뀐다면 CameraWindow 도 바뀌어야함
+
+8,g0E
+@@:hN Ho< ]P{"device_id":"SubPi_192.168.0.43","frame_index":0,"ip":"192.168.0.43","jpeg_size":25120,"timestamp_ms":8,"total_frames":5,"track_id":1}JFIFC
+
+	!"$"$C"	
+
+}!1AQa"q2#BR$3br	
+%&'()*456789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz	
+
+w!1AQaq"2B	#3Rbr
+$4%&'()*56789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz?p)'4* Q.04R)NsIX(&
+a)I@ h4iH( tc;PKE%!=)sHM 4q-BqKMa@
+ai)XZ,+\ciy4 w#zLnM4zSH
+(PFiES/Z`jF;p2q*(bP+ qNeiR
+q>,I=?:n(y~wLKyAgbL+WEn _q[p087jW'$Nq!\*A2sS13#Ji4p2iI=
+^3M@0HfrqJIJwsM{qn%ltu$v=mN	MPq)ASIM!4r
+084l4uh
+)9L'9tL$-mb!9"31f8U	S[y9XS74
+ZA<zREM1XSIGC{7 )
+)=Z4KJF@ozp4HO))HM1	M=iza4s@n9@ojcs<
+

@@ -1,4 +1,4 @@
-{
+﻿{
     "Header": "Type(1byte) + Length(4byte, Little-Endian)",
     "HeaderType": {
         "ACK": "0x00",

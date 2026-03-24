@@ -41,8 +41,6 @@ void MessageProcessor::processMessage(const Message &msg,
     handleImage(msg);
     break;
   default:
-    std::cerr << "[MessageProcessor] Unknown message type: " << msg.type
-              << "\n";
     break;
   }
 }
@@ -108,8 +106,10 @@ void MessageProcessor::handleAssign(const Message &msg) {
 }
 
 void MessageProcessor::handleMeta(const Message &msg) {
-  // META (0x09) logic
-  std::cout << "[MessageProcessor] Received META message\n";
+  if (callbacks_.onMetaResult && !msg.payload.empty()) {
+    std::string jsonStr(msg.payload.begin(), msg.payload.end());
+    callbacks_.onMetaResult(jsonStr);
+  }
 }
 
 void MessageProcessor::handleImage(const Message &msg) {

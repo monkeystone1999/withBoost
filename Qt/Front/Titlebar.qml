@@ -1,21 +1,19 @@
 import QtQuick
 import QWindowKit
-import AnoMap.front
+import AnoMap.Front
 
 Item {
-    id: root
+    id: rootItem
     height: 52
     required property var window
-    // QWindowKit setSystemButton 에 쓸 수 있도록 외부에 노출
-    property alias minimizeBtn: minimizeButton
-    property alias maximizeBtn: maximizeButton
-    property alias closeBtn: closeButton
-    property alias menuBtn: menuButton
-    property alias alarmBtn: alarm
+    property alias minimizeButtonItem: minimizeButton // system buttons
+    property alias maximizeButtonItem: maximizeButton
+    property alias closeButtonItem: closeButton
+    property alias menuButtonItem: menuButton
+    property alias alarmButtonItem: alarm
     Rectangle {
         anchors.fill: parent
         color: Theme.bgPrimary
-        //좌측 로고
         Row {
             anchors.left: parent.left
             anchors.leftMargin: 12
@@ -33,13 +31,18 @@ Item {
                 sourceSize.width: logoW
                 sourceSize.height: logoH
                 fillMode: Image.PreserveAspectFit
+
+                MouseArea {
+                    id: logoHoverArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                }
             }
-            // 햄버거 ≡ 메뉴 버튼
             Rectangle {
                 id: menuButton
                 width: 46
                 height: 48
-                color: menuHover.containsMouse ? Theme.bgThird : Theme.bgPrimary
+                color: menuHoverArea.containsMouse ? Theme.bgThird : Theme.bgPrimary
                 radius: 4
                 anchors.verticalCenter: parent.verticalCenter
 
@@ -51,9 +54,9 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "≡"
-                    font.pixelSize: 24
-                    color: menuHover.containsMouse ? Theme.iconChange : Theme.iconColor
+                    text: "\u2630"
+                    font.pixelSize: 20
+                    color: menuHoverArea.containsMouse ? Theme.iconChange : Theme.iconColor
                     Behavior on color {
                         ColorAnimation {
                             duration: 200
@@ -62,7 +65,7 @@ Item {
                 }
 
                 MouseArea {
-                    id: menuHover
+                    id: menuHoverArea
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
@@ -79,7 +82,6 @@ Item {
             font.pixelSize: 32
             color: Theme.fontColor
         }
-        // 우측 버튼들
         // source: "image://svg/Core/Logos/OnlyLogo.svg?color=" + Theme.iconChange
         Row {
             anchors.right: parent.right
@@ -91,16 +93,16 @@ Item {
             SystemButton {
                 id: minimizeButton
                 iconSource: Icon.minimize
-                onClicked: root.window.showMinimized()
+                onClicked: rootItem.window.showMinimized()
             }
             SystemButton {
                 id: maximizeButton
                 iconSource: Icon.maximize
                 onClicked: {
-                    if (root.window.visibility === Window.Maximized || root.window.visibility === Window.FullScreen) {
-                        root.window.showNormal();
+                    if (rootItem.window.visibility === Window.Maximized || rootItem.window.visibility === Window.FullScreen) {
+                        rootItem.window.showNormal();
                     } else {
-                        root.window.showMaximized();
+                        rootItem.window.showMaximized();
                     }
                 }
             }
@@ -108,8 +110,32 @@ Item {
                 id: closeButton
                 iconSource: Icon.close
                 isClose: true
-                onClicked: root.window.close()
+                onClicked: rootItem.window.close()
             }
+        }
+    }
+
+    Rectangle {
+        id: logoTooltip
+        visible: logoHoverArea.containsMouse
+        width: tooltipText.width + 20
+        height: tooltipText.height + 10
+        color: Theme.bgSecondary
+        border.color: Theme.hanwhaFirst
+        border.width: 1
+        radius: 4
+        z: 1000
+
+        x: 12
+        y: rootItem.height
+
+        Text {
+            id: tooltipText
+            anchors.centerIn: parent
+            text: "it's made from Veda 5th \"Team 4\" the AnoMap,\nright's come from AnoMap Team and this logo's right from hanwha\ngithub : https://github.com/veda-Anomap\ndetail : https://github.com/veda-Anomap/QtClient\nhanwha : https://profile.hanwhavision.com/kr/corporate-identity.html"
+            color: Theme.fontColor
+            font.pixelSize: 12
+            horizontalAlignment: Text.AlignLeft
         }
     }
 }

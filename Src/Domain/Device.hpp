@@ -20,7 +20,7 @@ struct DeviceIntegrated {
   std::string ip;
 
   // From CAMERA packet (static)
-  std::string rtspUrl;
+  std::string cameraId;
   std::string type; // "SUB_PI", "JETSON", etc.
   bool isOnline = false;
 
@@ -59,10 +59,11 @@ public:
   // IP-based lookup
   int findIndexByIp(const std::string &ip) const;
   bool hasDevice(const std::string &ip) const;
-  std::string rtspUrlByIp(const std::string &ip) const;
+  std::string cameraIdByIp(const std::string &ip) const;
 
   // History lookup (max 20 entries)
   std::vector<DeviceSnapshot> getHistory(const std::string &ip) const;
+  void clear();
 
 private:
   void addSnapshot(DeviceIntegrated &device, const DeviceSnapshot &snap);

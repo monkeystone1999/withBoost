@@ -10,4 +10,12 @@ QtObject {
     readonly property url minimize: Qt.resolvedUrl("../Assets/Core/Icons/Minimize.svg")
     readonly property url option: Qt.resolvedUrl("../Assets/Core/Icons/Option.svg")
     readonly property url logo: Qt.resolvedUrl("../Assets/Core/Logos/OnlyLogo.svg")
+
+    // Navigation Icons
+    readonly property url homeIcon: Qt.resolvedUrl("../Assets/Core/Icons/Home.svg")
+    readonly property url aiIcon: Qt.resolvedUrl("../Assets/Core/Icons/Ai.svg")
+    readonly property url deviceIcon: Qt.resolvedUrl("../Assets/Core/Icons/Device.svg")
+    readonly property url profileIcon: Qt.resolvedUrl("../Assets/Core/Icons/Profile.svg")
+    readonly property url adminIcon: Qt.resolvedUrl("../Assets/Core/Icons/Admin.svg")
+    readonly property url logoutIcon: Qt.resolvedUrl("../Assets/Core/Icons/Logout.svg")
 }

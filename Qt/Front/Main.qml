@@ -1,69 +1,90 @@
 import QtQuick
 import QtQuick.Controls
 import QWindowKit
-import AnoMap.front
+import AnoMap.Front
 
 Window {
-    id: root
+    id: rootItem
     width: 1280
     height: 800
     visible: true
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
 
-    onClosing: Qt.quit()
+    onClosing: close => {
+        if (typeof appController !== "undefined")
+            appController.shutdown();
+        Qt.quit();
+    }
 
-    // ── AppController: 네비게이션 + CameraWindow 레지스트리 ───────────────────
+    Component.onCompleted: {
+        if (typeof settingsController !== "undefined")
+            Theme.isDark = settingsController.darkMode;
+    }
+
     Connections {
-        target: typeof appController !== "undefined" ? appController : null
+        target: typeof appController !== "undefined" ? appController : null // app controller bridge
 
         function onNavigateTo(page) {
             switch (page) {
             case "Login":
-                stackView.replace(null, "View/LoginPage.qml"); break
-            case "Dashboard":
-            case "Home":
-                if (stackView.depth > 1) stackView.pop(null)
-                else stackView.replace(null, "View/DashboardPage.qml"); break
-            case "AdminDashboard":
-                stackView.replace(null, "View/AdminPage.qml"); break
-            case "AI":
-                stackView.replace(null, "View/AIPage.qml"); break
-            case "Device":
-                stackView.replace(null, "View/DevicePage.qml"); break
-            case "MyPage":
-                stackView.replace(null, "View/MyPage.qml"); break
+                stackView.replace(null, "pages/LoginPage.qml");
+                break;
             case "Signup":
-                stackView.replace(null, "View/SignupPage.qml"); break
+                stackView.replace(null, "pages/SignupPage.qml");
+                break;
             case "Back":
-                if (stackView.depth > 1) stackView.pop(); break
+                if (stackView.depth > 1)
+                    stackView.pop();
+                else{
+                    stackView.replace(null, "pages/LoginPage.qml");
+                }
+                break;
+            case "Dashboard":
+                if (stackView.depth > 1)
+                    stackView.pop(null);
+                else
+                    stackView.replace(null, "pages/DashboardPage.qml");
+                break;
+            case "AI":
+                stackView.replace(null, "pages/AiPage.qml");
+                break;
+            case "Device":
+                stackView.replace(null, "pages/DevicePage.qml");
+                break;
+            case "MyPage":
+                stackView.replace(null, "pages/MyPage.qml");
+                break;
+            case "AdminDashboard":
+                stackView.replace(null, "pages/AdminPage.qml");
+                break;
             }
         }
         function onOptionDialogRequested() {
-            optionDialog.open()
+            optionDialog.open();
         }
         function onLogoutRequested() {
             if (typeof loginController !== "undefined" && loginController !== null)
-                loginController.logout()
+                loginController.logout();
         }
     }
 
-    WindowAgent {
+    WindowAgent { // window chrome integration
         id: agent
         Component.onCompleted: {
-            agent.setup(root)
-            agent.setTitleBar(titleBar)
-            agent.setSystemButton(WindowAgent.Close, titleBar.closeBtn)
-            agent.setSystemButton(WindowAgent.Maximize, titleBar.maximizeBtn)
-            agent.setSystemButton(WindowAgent.Minimize, titleBar.minimizeBtn)
-            agent.setHitTestVisible(titleBar.menuBtn)
-            agent.setHitTestVisible(titleBar.alarmBtn)
+            agent.setup(rootItem);
+            agent.setTitleBar(titleBar);
+            agent.setSystemButton(WindowAgent.Close, titleBar.closeButtonItem);
+            agent.setSystemButton(WindowAgent.Maximize, titleBar.maximizeButtonItem);
+            agent.setSystemButton(WindowAgent.Minimize, titleBar.minimizeButtonItem);
+            agent.setHitTestVisible(titleBar.menuButtonItem);
+            agent.setHitTestVisible(titleBar.alarmButtonItem);
         }
     }
 
-    Titlebar {
+    TitleBar {
         id: titleBar
-        window: root
+        window: rootItem
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -75,25 +96,61 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        initialItem: "View/LoginPage.qml"
+        initialItem: "pages/LoginPage.qml"
 
         pushEnter: Transition {
             ParallelAnimation {
-                NumberAnimation { property: "x"; from: stackView.width * 0.06; to: 0; duration: 320; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 280; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    property: "x"
+                    from: stackView.width * 0.06
+                    to: 0
+                    duration: 320
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: 280
+                    easing.type: Easing.OutCubic
+                }
             }
         }
         pushExit: Transition {
-            NumberAnimation { property: "x"; from: 0; to: -stackView.width * 0.04; duration: 320; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                property: "x"
+                from: 0
+                to: -stackView.width * 0.04
+                duration: 320
+                easing.type: Easing.OutCubic
+            }
         }
         popEnter: Transition {
             ParallelAnimation {
-                NumberAnimation { property: "x"; from: -stackView.width * 0.06; to: 0; duration: 320; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 280; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    property: "x"
+                    from: -stackView.width * 0.06
+                    to: 0
+                    duration: 320
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: 280
+                    easing.type: Easing.OutCubic
+                }
             }
         }
         popExit: Transition {
-            NumberAnimation { property: "x"; from: 0; to: stackView.width * 0.04; duration: 320; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                property: "x"
+                from: 0
+                to: stackView.width * 0.04
+                duration: 320
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
@@ -103,30 +160,31 @@ Window {
         currentPage: typeof appController !== "undefined" ? appController.currentPage : "Dashboard"
         onRequestPage: pageName => {
             if (typeof appController !== "undefined")
-                appController.navigate(pageName)
+                appController.navigate(pageName);
         }
     }
 
-    // ── 현재 페이지의 requestPage 시그널 처리 ──────────────────────────────────
     Connections {
-        target: stackView.currentItem
+        target: stackView.currentItem // page request bridge
         function onRequestPage(pageName) {
             if (typeof appController !== "undefined")
-                appController.navigate(pageName)
+                appController.navigate(pageName);
         }
         function onRequestClose() {
-            if (stackView.depth > 1) stackView.pop()
+            if (stackView.depth > 1)
+                stackView.pop();
         }
     }
 
     Connections {
-        target: titleBar.menuBtn
-        function onClicked() { sideNav.toggle() }
+        target: titleBar.menuButtonItem // nav toggle hook
+        function onClicked() {
+            sideNav.toggle();
+        }
     }
 
-    // ── 알람 레이어: AlarmController.alarms 리스트를 ListView로 표시 ──────────
     Item {
-        id: alarmLayer
+        id: alarmLayer // alarm stack
         z: 200
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -153,18 +211,17 @@ Window {
                 severity: modelData.severity
                 onDismissRequested: id => {
                     if (typeof alarmController !== "undefined")
-                        alarmController.dismiss(id)
+                        alarmController.dismiss(id);
                 }
             }
         }
     }
 
-    // ── Option Dialog ─────────────────────────────────────────────────────────
-    Popup {
+    Popup { // options dialog
         id: optionDialog
         anchors.centerIn: parent
         width: 440
-        height: optDialogCol.implicitHeight + 56
+        height: optionDialogColumn.implicitHeight + 56
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -178,8 +235,13 @@ Window {
         }
 
         Column {
-            id: optDialogCol
-            anchors { top: parent.top; left: parent.left; right: parent.right; margins: 0 }
+            id: optionDialogColumn
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+                margins: 0
+            }
             spacing: 0
 
             Rectangle {
@@ -187,15 +249,47 @@ Window {
                 height: 52
                 color: "transparent"
                 radius: 14
-                Text { anchors.centerIn: parent; text: "⚙️  Option"; font.pixelSize: 17; font.bold: true; color: Theme.fontColor }
-                Rectangle {
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 14 }
-                    width: 28; height: 28; radius: 14
-                    color: closeOptHov.containsMouse ? (Theme.isDark ? "#555" : "#ddd") : "transparent"
-                    Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 20; color: Theme.fontColor }
-                    MouseArea { id: closeOptHov; anchors.fill: parent; hoverEnabled: true; onClicked: optionDialog.close() }
+                Text {
+                    anchors.centerIn: parent
+                    text: "Settings"
+                    font.pixelSize: 17
+                    font.bold: true
+                    color: Theme.fontColor
                 }
-                Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16 }height: 1; color: Theme.isDark ? "#3A3A3C" : "#D1D1D6" }
+                Rectangle {
+                    anchors {
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                        rightMargin: 14
+                    }
+                    width: 28
+                    height: 28
+                    radius: 14
+                    color: closeOptionHoverArea.containsMouse ? (Theme.isDark ? "#555" : "#ddd") : "transparent"
+                    Text {
+                        anchors.centerIn: parent
+                        text: "?"
+                        font.pixelSize: 20
+                        color: Theme.fontColor
+                    }
+                    MouseArea {
+                        id: closeOptionHoverArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: optionDialog.close()
+                    }
+                }
+                Rectangle {
+                    anchors {
+                        bottom: parent.bottom
+                        left: parent.left
+                        right: parent.right
+                        leftMargin: 16
+                        rightMargin: 16
+                    }
+                    height: 1
+                    color: Theme.isDark ? "#3A3A3C" : "#D1D1D6"
+                }
             }
 
             Column {
@@ -204,57 +298,32 @@ Window {
                 padding: 0
 
                 OptRow {
-                    label: "🌙  Dark Mode"
+                    label: "Dark Mode"
                     content: Switch {
                         checked: typeof settingsController !== "undefined" ? settingsController.darkMode : Theme.isDark
                         onToggled: {
                             if (typeof settingsController !== "undefined") {
-                                settingsController.darkMode = checked
-                                settingsController.save()
+                                settingsController.darkMode = checked;
+                                settingsController.save();
                             }
-                            Theme.isDark = checked
+                            Theme.isDark = checked;
                         }
                     }
                 }
                 OptRow {
-                    label: "🔔  Alarm Sound"
+                    label: "Alarm Sound"
                     content: Switch {
                         checked: typeof settingsController !== "undefined" ? settingsController.alarmSound : true
                         onToggled: {
                             if (typeof settingsController !== "undefined") {
-                                settingsController.alarmSound = checked
-                                settingsController.save()
+                                settingsController.alarmSound = checked;
+                                settingsController.save();
                             }
                         }
                     }
                 }
                 OptRow {
-                    label: "🗖  Default Grid"
-                    content: Row {
-                        spacing: 6
-                        Repeater {
-                            model: [2, 3, 4]
-                            delegate: Rectangle {
-                                width: 36; height: 28; radius: 6
-                                color: defGridBtn.containsMouse ? Theme.hanwhaFirst : (Theme.isDark ? "#3A3A3C" : "#E5E5EA")
-                                Text { anchors.centerIn: parent; text: modelData; font.pixelSize: 13; color: Theme.fontColor }
-                                MouseArea {
-                                    id: defGridBtn
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: {
-                                        if (typeof settingsController !== "undefined") {
-                                            settingsController.defaultGrid = modelData
-                                            settingsController.save()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                OptRow {
-                    label: "🌐  Server"
+                    label: "Server Address"
                     content: Text {
                         text: (typeof networkBridge !== "undefined" && networkBridge.serverAddress) ? networkBridge.serverAddress : "--"
                         font.pixelSize: 13
@@ -262,23 +331,30 @@ Window {
                     }
                 }
                 OptRow {
-                    label: "📜  Log Level"
+                    label: "Log Level"
                     content: Row {
                         spacing: 6
                         Repeater {
                             model: ["INFO", "WARN", "DEBUG"]
                             delegate: Rectangle {
-                                width: 52; height: 26; radius: 6
-                                color: logBtn.containsMouse ? Theme.hanwhaFirst : (Theme.isDark ? "#3A3A3C" : "#E5E5EA")
-                                Text { anchors.centerIn: parent; text: modelData; font.pixelSize: 11; color: Theme.fontColor }
+                                width: 52
+                                height: 26
+                                radius: 6
+                                color: logLevelButton.containsMouse ? Theme.hanwhaFirst : (Theme.isDark ? "#3A3A3C" : "#E5E5EA")
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData
+                                    font.pixelSize: 11
+                                    color: Theme.fontColor
+                                }
                                 MouseArea {
-                                    id: logBtn
+                                    id: logLevelButton
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     onClicked: {
                                         if (typeof settingsController !== "undefined") {
-                                            settingsController.logLevel = modelData
-                                            settingsController.save()
+                                            settingsController.logLevel = modelData;
+                                            settingsController.save();
                                         }
                                     }
                                 }
@@ -287,20 +363,52 @@ Window {
                     }
                 }
                 OptRow {
-                    label: "ℹ️  Version"
-                    content: Text { text: "1.0.0"; font.pixelSize: 13; color: Theme.isDark ? "#888" : "#666" }
+                    label: "Version"
+                    content: Text {
+                        text: "1.0.0"
+                        font.pixelSize: 13
+                        color: Theme.isDark ? "#888" : "#666"
+                    }
                 }
             }
         }
     }
 
-    component OptRow: Item {
+    component OptRow: Item { // options row
         property string label: ""
         property alias content: contentSlot.data
-        width: optDialogCol.width
+        width: optionDialogColumn.width
         height: 52
-        Text { anchors { left: parent.left; leftMargin: 24; verticalCenter: parent.verticalCenter } text: parent.label; font.pixelSize: 14; color: Theme.fontColor }
-        Item { id: contentSlot; anchors { right: parent.right; rightMargin: 24; verticalCenter: parent.verticalCenter } width: childrenRect.width; height: childrenRect.height }
-        Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16 } height: 1; color: Theme.isDark ? "#2A2A2C" : "#E5E5EA" }
+        Text {
+            anchors {
+                left: parent.left
+                leftMargin: 24
+                verticalCenter: parent.verticalCenter
+            }
+            text: parent.label
+            font.pixelSize: 14
+            color: Theme.fontColor
+        }
+        Item {
+            id: contentSlot
+            anchors {
+                right: parent.right
+                rightMargin: 24
+                verticalCenter: parent.verticalCenter
+            }
+            width: childrenRect.width
+            height: childrenRect.height
+        }
+        Rectangle {
+            anchors {
+                bottom: parent.bottom
+                left: parent.left
+                right: parent.right
+                leftMargin: 16
+                rightMargin: 16
+            }
+            height: 1
+            color: Theme.isDark ? "#2A2A2C" : "#E5E5EA"
+        }
     }
 }

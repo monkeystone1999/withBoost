@@ -34,6 +34,7 @@ public:
   ServerStatusData snapshot() const override;
 
   std::vector<ServerStatusData> getHistory() const;
+  void clear();
 
 private:
   mutable std::mutex mutex_;

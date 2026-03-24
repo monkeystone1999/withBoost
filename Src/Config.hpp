@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <sigslot/signal.hpp>
 #include <string_view>
 
 // ============================================================
@@ -15,37 +16,62 @@
 
 namespace Config {
 
-    // ── Network ──────────────────────────────────────────────
-    constexpr std::string_view SERVER_HOST    = "192.168.0.58";
-    constexpr std::string_view SERVER_PORT    = "20000";
-    constexpr std::string_view SESSION_NAME   = "Main";
+// ── Network ──────────────────────────────────────────────
+constexpr std::string_view SERVER_HOST = "192.168.0.58";
+constexpr std::string_view SERVER_PORT = "20000";
+constexpr std::string_view SESSION_NAME = "Main";
 
-    // ── ThreadPool ───────────────────────────────────────────
-    // 4 threads: camera-parse, device-parse, alarm-parse + 1 spare
-    constexpr std::size_t THREAD_POOL_SIZE    = 4;
+// ── ThreadPool ───────────────────────────────────────────
+// Removed THREAD_POOL_SIZE to dynamically use hardware_concurrency() / 2
 
-    // ── Video ────────────────────────────────────────────────
-    //constexpr int  VIDEO_FPS_LIMIT_MS         = 41;   // ~24 fps
-    constexpr int  VIDEO_BUFFER_POOL_SIZE_HD  = 8;
-    constexpr int  VIDEO_BUFFER_POOL_SIZE_4K  = 3;
-    constexpr int  SPLIT_AUTO_THRESHOLD_WIDTH = 2560;
+// ── Video ────────────────────────────────────────────────
+// constexpr int  VIDEO_FPS_LIMIT_MS         = 41;   // ~24 fps
+constexpr int VIDEO_BUFFER_POOL_SIZE_HD = 8;
+constexpr int VIDEO_BUFFER_POOL_SIZE_4K = 3;
+constexpr int SPLIT_AUTO_THRESHOLD_WIDTH = 2560;
 
-    struct AutoSplitEntry {
-        std::string_view rtspUrl;
-        int              tileCount;
-    };
+struct AutoSplitEntry {
+  std::string_view cameraId;
+  int tileCount;
+};
 
-    // URL -> split tile count. tileCount must be 1, 2, 3, or 4.
-    // Fill this list per deployment to enable automatic split by camera URL.
-    constexpr std::array<AutoSplitEntry, 0> AUTO_SPLIT_URL_TILE_MAP{};
+// CameraID -> split tile count. tileCount must be 1, 2, 3, or 4.
+// Fill this list per deployment to enable automatic split by camera id.
+constexpr std::array<AutoSplitEntry, 0> AUTO_SPLIT_CAMERA_ID_TILE_MAP{};
 
-    constexpr int autoSplitTileCountForUrl(std::string_view url) {
-        for (const auto &entry : AUTO_SPLIT_URL_TILE_MAP) {
-            if (entry.rtspUrl == url) {
-                return entry.tileCount;
-            }
-        }
-        return 1;
+constexpr int autoSplitTileCountForCameraId(std::string_view cameraId) {
+  for (const auto &entry : AUTO_SPLIT_CAMERA_ID_TILE_MAP) {
+    if (entry.cameraId == cameraId) {
+      return entry.tileCount;
     }
+  }
+  return 1;
+}
 
+template <typename T> class Observable {
+public:
+  sigslot::signal<T> on_changed;
+  Observable &operator=(const T &t) {
+    if (t_ != t) {
+      t_ = t;
+      on_changed(t);
+    }
+    return *this;
+  }
+  const T &get() const { return t_; }
+  operator const T &() const { return t_; }
+
+private:
+  T t_{};
+};
+
+class AppState {
+public:
+  static AppState &getInstance() {
+    static AppState app;
+    return app;
+  }
+  enum class User : uint8_t { LogOut, Admin, Normal };
+  User User_{User::LogOut};
+};
 } // namespace Config

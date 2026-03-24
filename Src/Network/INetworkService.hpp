@@ -22,6 +22,7 @@ struct NetworkCallbacks {
   std::function<void(const std::string &)> onCameraList;   // CAMERA body
   std::function<void(const std::string &)> onDeviceStatus; // DEVICE body
   std::function<void(const std::string &)> onAiResult;     // AI body
+  std::function<void(const std::string &)> onMetaResult;   // META body
   std::function<void(const std::string &)> onAssign;       // ASSIGN body
   std::function<void(const std::vector<uint8_t> &)>
       onImageReceived; // IMAGE body

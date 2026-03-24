@@ -45,8 +45,28 @@ void DeviceStore::updateFromCameraJson(const std::string &json, Callback cb) {
         device.ip = ip;
       }
 
-      // Update CAMERA info
-      device.rtspUrl = item.value("source_url", "");
+      // Update CAMERA info — parse cameraId in IP/streamNum format
+      std::string sourceUrl = item.value("source_url", "");
+      std::string cameraId;
+      if (!sourceUrl.empty()) {
+        size_t pos = sourceUrl.find(ip);
+        if (pos != std::string::npos) {
+          size_t slashPos = sourceUrl.find('/', pos + ip.length());
+          if (slashPos != std::string::npos &&
+              slashPos + 1 < sourceUrl.length()) {
+            size_t nextSlash = sourceUrl.find('/', slashPos + 1);
+            if (nextSlash != std::string::npos) {
+              std::string streamNum =
+                  sourceUrl.substr(slashPos + 1, nextSlash - slashPos - 1);
+              cameraId = ip + "/" + streamNum;
+            }
+          }
+        }
+      }
+      if (cameraId.empty()) {
+        cameraId = ip + "/0"; // fallback
+      }
+      device.cameraId = cameraId;
       device.type = item.value("type", "");
       device.isOnline = item.value("is_online", false);
 
@@ -170,10 +190,10 @@ bool DeviceStore::hasDevice(const std::string &ip) const {
   return findIndexByIp(ip) >= 0;
 }
 
-std::string DeviceStore::rtspUrlByIp(const std::string &ip) const {
+std::string DeviceStore::cameraIdByIp(const std::string &ip) const {
   std::lock_guard<std::mutex> lk(mutex_);
   int idx = findIndexByIp(ip);
-  return idx >= 0 ? devices_[idx].rtspUrl : "";
+  return idx >= 0 ? devices_[idx].cameraId : "";
 }
 
 std::vector<DeviceSnapshot>
@@ -186,4 +206,9 @@ DeviceStore::getHistory(const std::string &ip) const {
   // Convert deque to vector for returning
   const auto &hist = devices_[idx].history;
   return std::vector<DeviceSnapshot>(hist.begin(), hist.end());
+}
+
+void DeviceStore::clear() {
+  std::lock_guard<std::mutex> lk(mutex_);
+  devices_.clear();
 }

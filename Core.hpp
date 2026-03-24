@@ -15,8 +15,11 @@
 //         shutdown() tears down in reverse order.
 // ============================================================
 
+#include <QMetaObject>
 #include <QQmlEngine>
+#include <functional>
 #include <memory>
+#include <string>
 
 // ── Layer 1 forward declarations (pure C++, no Qt headers) ───────────────────
 class ThreadPool;
@@ -38,7 +41,6 @@ class DeviceModel;
 class ServerStatusModel;
 class UserModel;
 class VideoManager;
-class AlarmManager;
 class AiImageModel;
 
 class Core {
@@ -53,6 +55,9 @@ public:
   // Called from QGuiApplication::aboutToQuit.
   // Tears down in reverse construction order.
   void shutdown();
+
+  // ── ThreadPool Wrapper (decouples header from ThreadPool.hpp) ───────
+  void submitTask(std::function<void()> task);
 
 private:
   void constructLayer1();
@@ -78,10 +83,28 @@ private:
   ServerStatusModel *serverStatus_ = nullptr;
   UserModel *userModel_ = nullptr;
   VideoManager *videoManager_ = nullptr;
-  AlarmManager *alarmManager_ = nullptr;
   AiImageModel *aiImageModel_ = nullptr;
 
   AppController *appController_ = nullptr;
   AlarmController *alarmController_ = nullptr;
   SettingsController *settingsController_ = nullptr;
+
+  // ── Generic Cross-Thread Binding ─────────────────────────────────────
+  template <typename Store, typename Model, typename ParsedData>
+  void
+  bindStoreToModel(Store *store, Model *model, const std::string &json,
+                   void (Store::*parseFunc)(const std::string &,
+                                            std::function<void(ParsedData)>),
+                   void (Model::*updateFunc)(ParsedData)) {
+    submitTask([=]() {
+      (store->*parseFunc)(json, [=](ParsedData data) {
+        QMetaObject::invokeMethod(
+            model,
+            [=, d = std::move(data)]() mutable {
+              (model->*updateFunc)(std::move(d));
+            },
+            Qt::QueuedConnection);
+      });
+    });
+  }
 };

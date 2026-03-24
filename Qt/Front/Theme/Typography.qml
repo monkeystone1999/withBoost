@@ -2,7 +2,6 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    // ── Font Loaders ─────────────────────────────────────────────
     readonly property FontLoader _hanwhaB: FontLoader {
         source: Qt.resolvedUrl("../Assets/Core/Fonts/01HanwhaB.ttf")
     }
@@ -28,7 +27,6 @@ QtObject {
         source: Qt.resolvedUrl("../Assets/Core/Fonts/08HanwhaGothicT.ttf")
     }
 
-    // ── Expose Family Names (Maintaining Existing Variable Names) ──
     readonly property string fontFamilyPrimary: _hanwhaR.font.family
     readonly property string fontFamilyPrimaryBold: _hanwhaB.font.family
 
@@ -37,7 +35,6 @@ QtObject {
     readonly property string fontFamilySecondaryExtraLight: _gothicEL.font.family
     readonly property string fontFamilySecondaryThin: _gothicT.font.family
 
-    // ── Size Scales ─────────────────────────────────────────
     readonly property int brandFont: 32
     readonly property int primaryFont: 24
     readonly property int secondaryFont: 18
