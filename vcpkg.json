@@ -8,6 +8,7 @@
     "openssl",
     "libyuv",
     "palsigslot",
+    "yaml-cpp",
     {
       "name": "ffmpeg",
       "features": [

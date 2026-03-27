@@ -11,7 +11,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(AnoMap VERSION 0.5 LANGUAGES CXX)
+project(AnoMap VERSION 0.8 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

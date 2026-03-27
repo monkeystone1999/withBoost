@@ -22,3 +22,7 @@ struct UserData {
     , isOnline(false)
     , activeCameras(0) {}
 };
+
+class ApplicationService{ /// Qt Bridge + Background Bridge 다 모이는 곳
+
+};

@@ -1,10 +1,7 @@
 #pragma once
-
 #include <cstdint>
-#include <vector>
 
-namespace anomap {
-namespace network {
+
 
 enum class MessageType : uint8_t {
   LOGIN = 0x01,
@@ -20,18 +17,9 @@ enum class MessageType : uint8_t {
   TLS_HANDSHAKE = 0x0b
 };
 
-struct Message {
-  uint8_t type;
-  uint32_t length;
-  std::vector<uint8_t> payload;
-};
-
 #pragma pack(push, 1)
 struct PacketHeader {
   MessageType type;
   uint32_t length;
 };
 #pragma pack(pop)
-
-} // namespace network
-} // namespace anomap

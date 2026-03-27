@@ -26,3 +26,8 @@ public:
 private:
   ThreadPool &pool_;
 };
+
+class AlarmBridge{
+
+    std::deque<AlarmEvent> AlarmEvent_;
+};

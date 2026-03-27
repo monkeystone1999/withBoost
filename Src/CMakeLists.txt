@@ -10,7 +10,7 @@ find_package(boost_system CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(libyuv CONFIG REQUIRED)
 find_package(PalSigslot CONFIG REQUIRED)
-
+find_package(yaml-cpp CONFIG REQUIRED)
 # @brief AnoMapSTD 정적 라이브러리 생성
 # 
 # **표준 사용 방법론 (Standard Usage Methodology):**
@@ -39,8 +39,8 @@ add_library(AnoMapSTD STATIC
     Thread/ThreadPool.cpp
     Thread/ThreadPool.hpp
     Config.hpp
-    # Network/SessionEngine.hpp
-    # Network/SessionEngine.cpp
+    Network/SessionEngine.hpp
+    Network/SessionEngine.cpp
     Crypt/DTLS.hpp
     Crypt/TLS.hpp
 )
@@ -70,6 +70,7 @@ target_link_libraries(AnoMapSTD PUBLIC
     FFmpeg::swresample
     yuv
     Pal::Sigslot
+    yaml-cpp::yaml-cpp
 )
 
 # [AnoMapSTD Workflow Guide]

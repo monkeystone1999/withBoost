@@ -2,7 +2,7 @@
 #include <array>
 #include <sigslot/signal.hpp>
 #include <string_view>
-
+#include <yaml-cpp/yaml.h>
 // ============================================================
 //  Config.hpp — Compile-time deployment constants
 //
@@ -15,6 +15,36 @@
 // ============================================================
 
 namespace Config {
+
+class ReadSettings{
+public:
+    ReadSettings(){
+        YAML::Node Settings = YAML::LoadFile("Settings.yaml");
+        ServerIP = Settings["ServerIP"].as<std::string>();
+        ServerPort = Settings["ServerPort"].as<std::string>();
+    }
+    std::string getServerIP() const {
+        return ServerIP;
+    }
+    std::string getServerPort() const {
+        return ServerPort;
+    }
+private:
+    std::string ServerIP;
+    std::string ServerPort;
+};
+
+class ExternSettings{
+public:
+    static ExternSettings& getInstance(){
+        static ExternSettings set;
+        return set;
+    }
+    ReadSettings ReadSettings_;
+};
+
+
+
 
 // ── Network ──────────────────────────────────────────────
 constexpr std::string_view SERVER_HOST = "192.168.0.58";
