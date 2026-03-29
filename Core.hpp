@@ -1,18 +1,10 @@
-﻿#pragma once
+#pragma once
 
 // ============================================================
-//  Core.hpp — Application orchestrator
+//  Core.hpp — Application orchestrator (Refactored)
 //
-//  WHEN:  Constructed in main(), before engine.loadFromModule().
-//  WHERE: Project root, alongside App.cpp.
-//  WHY:   App.cpp must only handle Qt engine configuration.
-//         All object construction, dependency injection, and signal
-//         wiring belongs here — one place, explicit order, no globals.
-//  HOW:   Core owns all Layer-1 (pure C++) objects via unique_ptr.
-//         Layer-2 QObjects are parented to QQmlEngine (owned by it).
-//         init() constructs everything in dependency order and calls
-//         registerContextProperties().
-//         shutdown() tears down in reverse order.
+//  Layer 1: ThreadPool → NetworkManager → CameraManager → Bridges
+//  Layer 2: Qt Models (CameraModel, etc.) — view only
 // ============================================================
 
 #include <QMetaObject>
@@ -23,14 +15,14 @@
 
 // ── Layer 1 forward declarations (pure C++, no Qt headers) ───────────────────
 class ThreadPool;
-class NetworkService;
-class CameraStore;
-class DeviceStore;
-class ServerStatusStore;
-class AlarmDispatcher;
+class NetworkManager;
+class CameraManager;
+class CameraBridge;
+class AuthBridge;
+class AlarmManager;
+class StatusManager;
 
 // ── Layer 2 forward declarations (QObject adapters) ──────────────────────────
-class NetworkBridge;
 class LoginController;
 class SignupController;
 class AppController;
@@ -42,21 +34,15 @@ class ServerStatusModel;
 class UserModel;
 class VideoManager;
 class AiImageModel;
+class ServerConnect;
 
 class Core {
 public:
   Core();
   ~Core();
 
-  // Called once from App.cpp after Qt engine setup.
-  // Constructs all objects, wires signals, registers context properties.
   void init(QQmlEngine &engine);
-
-  // Called from QGuiApplication::aboutToQuit.
-  // Tears down in reverse construction order.
   void shutdown();
-
-  // ── ThreadPool Wrapper (decouples header from ThreadPool.hpp) ───────
   void submitTask(std::function<void()> task);
 
 private:
@@ -65,17 +51,17 @@ private:
   void wireSignals();
   void registerContextProperties(QQmlEngine &engine);
 
-  // ── Layer 1 — owned here (destroyed in ~Core) ────────────────────────
+  // ── Layer 1 — owned here ──────────────────────────────────────────────
   std::unique_ptr<ThreadPool> threadPool_;
-  std::unique_ptr<NetworkService> networkService_;
-  std::unique_ptr<CameraStore> cameraStore_;
-  std::unique_ptr<DeviceStore> deviceStore_;
-  std::unique_ptr<ServerStatusStore> serverStatusStore_;
-  std::unique_ptr<AlarmDispatcher> alarmDispatcher_;
+  std::unique_ptr<NetworkManager> networkManager_;
+  std::unique_ptr<CameraManager> cameraManager_;
+  std::unique_ptr<StatusManager> statusManager_;
+  std::unique_ptr<CameraBridge> cameraBridge_;
+  std::unique_ptr<AuthBridge> authBridge_;
+  std::unique_ptr<AlarmManager> alarmManager_;
+  std::shared_ptr<ServerConnect> serverConnect_;
 
-  // ── Layer 2 — parented to QQmlEngine, not owned by Core ─────────────
-  // Raw pointers only — QQmlEngine destructor handles deletion.
-  NetworkBridge *networkBridge_ = nullptr;
+  // ── Layer 2 — parented to QQmlEngine ──────────────────────────────────
   LoginController *login_ = nullptr;
   SignupController *signup_ = nullptr;
   CameraModel *cameraModel_ = nullptr;
@@ -90,6 +76,7 @@ private:
   SettingsController *settingsController_ = nullptr;
 
   // ── Generic Cross-Thread Binding ─────────────────────────────────────
+  /*
   template <typename Store, typename Model, typename ParsedData>
   void
   bindStoreToModel(Store *store, Model *model, const std::string &json,
@@ -107,4 +94,5 @@ private:
       });
     });
   }
+  */
 };

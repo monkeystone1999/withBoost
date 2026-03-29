@@ -1,5 +1,4 @@
-﻿#pragma once
-#include "Services/NetworkBridge.hpp"
+#pragma once
 #include <QObject>
 #include <QString>
 
@@ -9,7 +8,8 @@ class AuthController : public QObject {
   Q_PROPERTY(bool isError READ isError NOTIFY isErrorChanged)
   Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
 public:
-  explicit AuthController(NetworkBridge *bridge, const QString &host,
+  // [DEPRECATED] NetworkBridge 기반 생성자 — TODO: ServerConnect 기반으로 전환
+  explicit AuthController(/*NetworkBridge *bridge,*/ const QString &host,
                           const QString &port, QObject *parent = nullptr);
 
   bool isLoading() const { return isLoading_; }
@@ -27,7 +27,7 @@ protected:
   void setError(const QString &msg);
   void clearError();
 
-  NetworkBridge *bridge_;
+  // NetworkBridge *bridge_;  // [DELETED]
   QString host_;
   QString port_;
   bool isLoading_ = false;
@@ -40,7 +40,8 @@ class LoginController : public AuthController {
   Q_PROPERTY(QString state READ state NOTIFY stateChanged)
   Q_PROPERTY(QString username READ username NOTIFY usernameChanged)
 public:
-  explicit LoginController(NetworkBridge *bridge, const QString &host,
+  // [DEPRECATED] NetworkBridge 기반 생성자
+  explicit LoginController(/*NetworkBridge *bridge,*/ const QString &host,
                            const QString &port, QObject *parent = nullptr);
 
   QString state() const { return state_; }
@@ -72,7 +73,8 @@ private:
 class SignupController : public AuthController {
   Q_OBJECT
 public:
-  explicit SignupController(NetworkBridge *bridge, const QString &host,
+  // [DEPRECATED] NetworkBridge 기반 생성자
+  explicit SignupController(/*NetworkBridge *bridge,*/ const QString &host,
                             const QString &port, QObject *parent = nullptr);
 
   Q_INVOKABLE void signup(const QString &id, const QString &email,

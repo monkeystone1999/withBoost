@@ -15,9 +15,9 @@ cmake_minimum_required(VERSION 3.16)
 qt_add_library(FrontEnd STATIC)
 
 set_source_files_properties(
-    theme/Theme.qml
-    theme/Icon.qml
-    theme/Typography.qml
+    Theme/Theme.qml
+    Theme/Icon.qml
+    Theme/Typography.qml
     PROPERTIES
         QT_QML_SINGLETON_TYPE TRUE
 )
@@ -29,42 +29,42 @@ qt_add_qml_module(FrontEnd
     QML_FILES
         Main.qml
         TitleBar.qml
-        components/BasicButton.qml
-        components/camera/CameraCard.qml
-        components/camera/CameraWindow.qml
-        components/camera/CameraWindowTitleBar.qml
-        components/dashboard/GridColumnSelector.qml
-        components/dashboard/AdminStatusBar.qml
-        components/dashboard/DashboardContextMenu.qml
-        components/camera/AiContextMenu.qml
-        components/camera/AiControlBar.qml
-        components/camera/DeviceContextMenu.qml
-        components/InputText.qml
-        components/SystemButton.qml
-        components/SideNavPanel.qml
-        components/NavItem.qml
-        components/AlarmCard.qml
-        components/VideoSurface.qml
-        components/device/DeviceControlBar.qml
-        components/device/DeviceBadge.qml
-        components/device/DeviceControlPanel.qml
-        components/device/LiveGraph.qml
-        components/user/UserCard.qml
-        theme/Icon.qml
-        theme/Theme.qml
-        theme/Typography.qml
-        layouts/DashboardLayout.qml
-        layouts/DeviceListLayout.qml
-        layouts/UserListLayout.qml
-        layouts/CameraSplitLayout.qml
-        pages/DashboardPage.qml
-        pages/AiPage.qml
-        pages/DevicePage.qml
-        pages/MyPage.qml
-        pages/LoginPage.qml
-        pages/SettingsPage.qml
-        pages/SignupPage.qml
-        pages/AdminPage.qml
+        Component/BasicButton.qml
+        Component/Camera/CameraCard.qml
+        Component/Camera/CameraWindow.qml
+        Component/Camera/CameraWindowTitleBar.qml
+        Component/Dashboard/GridColumnSelector.qml
+        Component/Dashboard/AdminStatusBar.qml
+        Component/Dashboard/DashboardContextMenu.qml
+        Component/Camera/AiContextMenu.qml
+        Component/Camera/AiControlBar.qml
+        Component/Camera/DeviceContextMenu.qml
+        Component/InputText.qml
+        Component/SystemButton.qml
+        Component/SideNavPanel.qml
+        Component/NavItem.qml
+        Component/AlarmCard.qml
+        Component/VideoSurface.qml
+        Component/Device/DeviceControlBar.qml
+        Component/Device/DeviceBadge.qml
+        Component/Device/DeviceControlPanel.qml
+        Component/Device/LiveGraph.qml
+        Component/User/UserCard.qml
+        Theme/Icon.qml
+        Theme/Theme.qml
+        Theme/Typography.qml
+        Layout/DashboardLayout.qml
+        Layout/DeviceListLayout.qml
+        Layout/UserListLayout.qml
+        Layout/CameraSplitLayout.qml
+        Page/DashboardPage.qml
+        Page/AiPage.qml
+        Page/DevicePage.qml
+        Page/MyPage.qml
+        Page/LoginPage.qml
+        Page/SettingsPage.qml
+        Page/SignupPage.qml
+        Page/AdminPage.qml
 
     RESOURCES
         Assets/Core/Icons/Home.svg
@@ -101,6 +101,6 @@ target_link_libraries(FrontEnd PRIVATE
 )
 
 # [Frontend Workflow Guide]
-# 1. 신규 페이지 추가: pages/ 폴더에 .qml 생성 후 모듈(QML_FILES)에 등록
+# 1. 신규 페이지 추가: Page/ 폴더에 .qml 생성 후 모듈(QML_FILES)에 등록
 # 2. 아이콘/에셋 추가: Assets/ 폴더 내 적절한 위치에 복사 후 RESOURCES에 경로 추가
-# 3. 커스텀 컴포넌트: components/ 내에서 재사용 가능한 단위로 분리하여 관리
+# 3. 커스텀 컴포넌트: Component/ 내에서 재사용 가능한 단위로 분리하여 관리

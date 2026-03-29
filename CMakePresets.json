@@ -1,4 +1,4 @@
-﻿{
+{
   "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
@@ -7,59 +7,48 @@
   },
   "configurePresets": [
     {
-      "name": "base",
+      "name": "default-base",
       "hidden": true,
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "installDir": "${sourceDir}/install/${presetName}",
       "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "description": "팀 공통 기본 빌드 설정 (Ninja 및 vcpkg)",
       "cacheVariables": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "Qt6_DIR": "$env{Qt6_DIR}",
         "CMAKE_PREFIX_PATH": "$env{Qt6_ROOT}"
       }
     },
     {
-      "name": "ninja-base",
-      "hidden": true,
-      "inherits": "base",
-      "generator": "Ninja",
+      "name": "default-debug",
+      "displayName": "팀 공유 Debug",
+      "description": "공통 표준 Debug 빌드 옵션",
+      "inherits": "default-base",
       "cacheVariables": {
-        "CMAKE_GENERATOR_INSTANCE": "",
-        "CMAKE_GENERATOR_PLATFORM": "",
-        "CMAKE_GENERATOR_TOOLSET": ""
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
     {
-      "name": "anomap-ninja-debug",
-      "displayName": "AnoMap Ninja (Debug)",
-      "inherits": "ninja-base",
+      "name": "default-release",
+      "displayName": "팀 공유 Release",
+      "description": "공통 표준 Release 빌드 옵션",
+      "inherits": "default-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "anomap-ninja-release",
-      "displayName": "AnoMap Ninja (Release)",
-      "inherits": "ninja-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "OFF"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "anomap-ninja-debug",
-      "configurePreset": "anomap-ninja-debug"
+      "name": "default-debug",
+      "configurePreset": "default-debug"
     },
     {
-      "name": "anomap-ninja-release",
-      "configurePreset": "anomap-ninja-release"
+      "name": "default-release",
+      "configurePreset": "default-release"
     }
   ]
 }

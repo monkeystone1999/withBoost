@@ -1,5 +1,32 @@
-﻿#pragma once
-#include "../../Src/Domain/Camera.hpp"
+#pragma once
+#include <QAbstractListModel>
+#include <QJsonObject>
+#include <QList>
+#include <QMetaType>
+#include <QObject>
+#include <QRectF>
+#include <QSet>
+#include <QString>
+#include <vector>
+#include <string>
+
+// ── UI-only types (Split/Crop for CameraCard, newWindow sync) ──────────────
+enum class SplitDirection { None = 0, Col, Row, Grid };
+
+struct DeviceInfo {
+    double hum = 0.0;
+    double light = 0.0;
+    double tilt = 0.0;
+    double tmp = 0.0;
+};
+
+// ── Camera snapshot DTO (replaces deleted CameraData from Camera.hpp) ──────
+struct CameraData {
+    std::string cameraId;
+    std::string title;
+    std::string cameraType;
+    bool isOnline = false;
+};
 #include <QAbstractListModel>
 #include <QJsonObject>
 #include <QList>

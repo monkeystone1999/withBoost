@@ -1,11 +1,22 @@
-﻿#pragma once
-#include "../../Src/Domain/User.hpp"
+#pragma once
+#include <string>
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QHash>
 #include <QList>
 #include <QString>
 #include <vector>
+
+struct UserData {
+    std::string userId;
+    std::string username;
+    std::string email;
+    std::string role;
+    bool isOnline = false;
+    long long lastLogin = 0;
+    std::string ipAddress;
+    int activeCameras = 0;
+};
 
 struct UserEntry {
   QString userId;

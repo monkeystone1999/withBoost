@@ -28,7 +28,7 @@ void AppController::registerCameraWindow(QObject *win) {
   if (!win)
     return;
   // 이미 있으면 skip
-  for (const auto &p : qAsConst(cameraWindows_)) {
+  for (const auto &p : std::as_const(cameraWindows_)) {
     if (p == win)
       return;
   }

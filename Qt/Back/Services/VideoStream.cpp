@@ -1,12 +1,20 @@
-﻿#include "VideoStream.hpp"
+#include "VideoStream.hpp"
+#include "../../Src/Network/VideoEngine.hpp"
+#include "../../Src/Domain/CameraManager.hpp"
 #include <QDebug>
 #include <QMetaObject>
 #include <QTimerEvent>
 
 VideoWorker::VideoWorker(const QString &cameraId, QObject *parent)
-    : QObject(parent), cameraId_(cameraId), video_(std::make_unique<Video>()) {
+    : QObject(parent), cameraId_(cameraId) {}
 
-  video_->onFrameReady = [this](const Video::FramePayload &payload) {
+VideoWorker::~VideoWorker() { stopStream(); }
+
+void VideoWorker::startStream() {
+  if (!videoEngine_ || connectionString_.isEmpty())
+    return;
+
+  videoEngine_->onFrameReady = [this](const VideoEngine::FramePayload &payload) {
     if (!payload.dataY || !payload.dataUV || payload.width <= 0 ||
         payload.height <= 0)
       return;
@@ -54,16 +62,16 @@ VideoWorker::VideoWorker(const QString &cameraId, QObject *parent)
       emit frameReady(frame);
     }
   };
+
+  videoEngine_->startStream(connectionString_.toStdString(), fpsLimit_);
 }
 
-VideoWorker::~VideoWorker() { stopStream(); }
+void VideoWorker::stopStream() { if (videoEngine_) videoEngine_->stopStream(); }
 
-void VideoWorker::startStream() {
-  if (connectionString_.isEmpty())
-    return;
-  video_->startStream(connectionString_.toStdString(), fpsLimit_);
+void VideoWorker::setFpsLimit(int fps) {
+  fpsLimit_ = fps;
+  if (videoEngine_) videoEngine_->setFpsLimit(fps);
 }
-void VideoWorker::stopStream() { video_->stopStream(); }
 
 VideoManager::VideoManager(QObject *parent) : QObject(parent) {}
 
@@ -102,6 +110,11 @@ void VideoManager::registerSlots(const QList<SlotInfo> &Slots) {
     if (si.cameraId.isEmpty() || workers_.contains(si.cameraId))
       continue;
     auto *worker = new VideoWorker(si.cameraId, this);
+    if (cameraManager_) {
+      auto* cam = cameraManager_->Get(si.cameraId.toStdString());
+      if (cam && cam->video_)
+        worker->setVideoEngine(cam->video_.get());
+    }
     if (urlProvider_) {
       worker->setConnectionString(urlProvider_(si.cameraId));
     }
@@ -119,6 +132,11 @@ void VideoManager::registerCameraIds(const QStringList &cameraIds) {
     if (id.isEmpty() || workers_.contains(id))
       continue;
     auto *worker = new VideoWorker(id, this);
+    if (cameraManager_) {
+      auto* cam = cameraManager_->Get(id.toStdString());
+      if (cam && cam->video_)
+        worker->setVideoEngine(cam->video_.get());
+    }
     if (urlProvider_) {
       worker->setConnectionString(urlProvider_(id));
     }
@@ -137,6 +155,11 @@ void VideoManager::restartWorker(const QString &cameraId) {
     if (cameraId.isEmpty())
       return;
     worker = new VideoWorker(cameraId, this);
+    if (cameraManager_) {
+      auto* cam = cameraManager_->Get(cameraId.toStdString());
+      if (cam && cam->video_)
+        worker->setVideoEngine(cam->video_.get());
+    }
     if (urlProvider_) {
       worker->setConnectionString(urlProvider_(cameraId));
     }

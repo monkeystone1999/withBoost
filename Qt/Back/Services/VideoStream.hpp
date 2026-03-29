@@ -1,6 +1,8 @@
-﻿#pragma once
+#pragma once
 
-#include "../../Src/Network/Video.hpp"
+class VideoEngine;
+class CameraManager;
+
 #include "Models/CameraModel.hpp"
 #include <QByteArray>
 #include <QList>
@@ -26,11 +28,8 @@ public:
 
   // Used by VideoManager to inject full connection string
   void setConnectionString(const QString &url) { connectionString_ = url; }
-  void setFpsLimit(int fps) {
-    fpsLimit_ = fps;
-    if (video_)
-      video_->setFpsLimit(fps);
-  }
+  void setVideoEngine(VideoEngine* engine) { videoEngine_ = engine; }
+  void setFpsLimit(int fps);
 
   uint64_t frameSeq() const {
     return frameSeq_.load(std::memory_order_acquire);
@@ -50,7 +49,7 @@ signals:
 private:
   QString cameraId_;
   QString connectionString_;
-  std::unique_ptr<Video> video_;
+  VideoEngine* videoEngine_ = nullptr;
   std::atomic<uint64_t> frameSeq_{0};
   std::atomic<bool> loggedFrameInfo_{false};
   int fpsLimit_ = 30;
@@ -76,6 +75,7 @@ public:
   void setFpsProvider(std::function<int()> provider) {
     fpsProvider_ = std::move(provider);
   }
+  void setCameraManager(CameraManager* mgr) { cameraManager_ = mgr; }
 
 public slots:
   void registerSlots(const QList<SlotInfo> &slots);
@@ -88,6 +88,7 @@ signals:
   void workerRegistered(const QString &cameraId);
 
 private:
+  CameraManager* cameraManager_ = nullptr;
   QMap<QString, VideoWorker *> workers_;
   QMap<int, QString> slotToCameraId_;
   std::function<QString(const QString &)> urlProvider_;

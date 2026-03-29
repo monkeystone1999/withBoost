@@ -1,4 +1,4 @@
-﻿# @file Src/CMakeLists.txt
+# @file Src/CMakeLists.txt
 # @brief 프로젝트 핵심 비즈니스 로직 라이브러리 (AnoMapSTD) 구성 파일
 #
 # 이 파일은 플랫폼 독립적인 핵심 로직(네트워킹, 도메인 모델, 스레드 풀, 암호화)을 관리합니다.
@@ -16,33 +16,43 @@ find_package(yaml-cpp CONFIG REQUIRED)
 # **표준 사용 방법론 (Standard Usage Methodology):**
 # 1. **통신 규격 정의**: Network/Protocol.hpp에서 메시지 구문 분석 정의
 # 2. **데이터 저장소 구현**: Domain 폴더에 IStore를 상속받는 전용 Store 추가
-# 3. **서비스 통합**: NetworkService에서 해당 Store를 사용하여 외부 데이터 동기화
+# 3. **서비스 통합**: NetworkManager + sigslot 기반으로 패킷 처리 및 도메인 업데이트
 add_library(AnoMapSTD STATIC
-    Network/Protocol.hpp
-    Network/TcpSession.hpp
-    Network/MessageProcessor.hpp
-    Network/MessageProcessor.cpp
-    Network/NetworkService.hpp
-    Network/NetworkService.cpp
-    Network/Video.hpp
-    Network/Video.cpp
-    Domain/IStore.hpp
-    Domain/Alarm.hpp
-    Domain/Alarm.cpp
-    Domain/Camera.hpp
-    Domain/Camera.cpp
-    Domain/Device.hpp
-    Domain/Device.cpp
-    Domain/ServerStatus.hpp
-    Domain/ServerStatus.cpp
-    Domain/User.hpp
-    Thread/ThreadPool.cpp
-    Thread/ThreadPool.hpp
+    ## Network
+    Network/NetworkProtocol.hpp
+    Network/NetworkManager.hpp
+    Network/NetworkManager.cpp
+    Network/NetworkEngine.hpp
+    Network/NetworkEngine.cpp
+    Network/VideoEngine.hpp
+    Network/VideoEngine.cpp
+
+    ## Domain
+    Domain/CameraManager.hpp
+    Domain/CameraManager.cpp
+    Domain/CameraBridge.hpp
+    Domain/CameraBridge.cpp
+    Domain/AlarmManager.hpp
+    Domain/AlarmManager.cpp
+    Domain/AlarmBridge.hpp
+    Domain/StatusManager.hpp
+    Domain/StatusManager.cpp
+    Domain/AuthBridge.hpp
+    Domain/AuthBridge.cpp
+    Domain/AuthManager.hpp
+
+    ## Crypt
+    Crypt/DtlsEngine.hpp
+    Crypt/DtlsEngine.cpp
+    Crypt/TlsEngine.hpp
+    Crypt/TlsEngine.cpp
+
+    ## Thread
+    Thread/ThreadEngine.hpp
+    Thread/ThreadEngine.cpp
+
+    ## Config
     Config.hpp
-    Network/SessionEngine.hpp
-    Network/SessionEngine.cpp
-    Crypt/DTLS.hpp
-    Crypt/TLS.hpp
 )
 
 # @note 외부 라이브러리(OpenSSL, FFmpeg 등)의 인클루드 경로 설정
@@ -74,6 +84,6 @@ target_link_libraries(AnoMapSTD PUBLIC
 )
 
 # [AnoMapSTD Workflow Guide]
-# 1. 네트워크 통신 흐름: NetworkService가 수신한 패킷을 MessageProcessor로 전달
-# 2. 데이터 업데이트: MessageProcessor는 목적에 맞는 Domain Store를 호출하여 상태 변경
+# 1. 네트워크 통신 흐름: TextConnect가 수신한 패킷을 NetworkManager::Packets()로 전달, MediaConnect가 UDP 이미지 수신
+# 2. 데이터 업데이트: NetworkManager는 sigslot 시그널로 Bridge에 전달, Bridge가 Manager 업데이트
 # 3. 스레드 관리: 비동기 작업은 ThreadPool을 통해 Worker 스레드에서 수행하도록 구현

@@ -1,0 +1,15 @@
+﻿[1/13] Building CXX object Qt\Back\CMakeFiles\BackEnd.dir\Models\UserModel.cpp.obj
+FAILED: [code=1] Qt/Back/CMakeFiles/BackEnd.dir/Models/UserModel.cpp.obj 
+C:\PROGRA~1\LLVM\bin\clang-cl.exe  /nologo -TP -DBOOST_CONTAINER_DYN_LINK -DBOOST_CONTAINER_NO_LIB -DBOOST_CONTEXT_DYN_LINK="" -DBOOST_CONTEXT_EXPORT=EXPORT -DBOOST_CONTEXT_NO_LIB="" -DBOOST_DATE_TIME_DYN_LINK -DBOOST_DATE_TIME_NO_LIB -DQT_CORE_LIB -DQT_GUI_LIB -DQT_MULTIMEDIA_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QMLMETA_LIB -DQT_QMLMODELS_LIB -DQT_QMLWORKERSCRIPT_LIB -DQT_QML_LIB -DQT_QUICK_LIB -DUNICODE -DWIN32 -DWIN64 -D_ENABLE_EXTENDED_ALIGNED_STORAGE -D_UNICODE -D_WIN64 -IE:\withBoost\build\my-local-debug\Qt\Back\BackEnd_autogen\include -IE:\withBoost\Qt\Back -IE:\withBoost\Qt\Back\..\..\Src -IE:\withBoost\Src -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtCore -imsvcC:\Qt\6.8.3\msvc2022_64\include -imsvcC:\Qt\6.8.3\msvc2022_64\mkspecs\win32-msvc -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtGui -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtQuick -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtQml -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtQmlIntegration -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtNetwork -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtQmlMeta -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtQmlModels -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtQmlWorkerScript -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtOpenGL -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtMultimedia -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtGui\6.8.3 -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtGui\6.8.3\QtGui -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtCore\6.8.3 -imsvcC:\Qt\6.8.3\msvc2022_64\include\QtCore\6.8.3\QtCore -imsvcE:\withBoost\build\my-local-debug\vcpkg_installed\x64-windows\include /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /showIncludes /FoQt\Back\CMakeFiles\BackEnd.dir\Models\UserModel.cpp.obj /FdQt\Back\CMakeFiles\BackEnd.dir\BackEnd.pdb -c -- E:\withBoost\Qt\Back\Models\UserModel.cpp
+E:\withBoost\Qt\Back\Models\UserModel.cpp(80,32): error: use of undeclared identifier 'UserRole'
+   80 |     entry.role = (data.role == UserRole::Admin) ? "admin" : "user";
+      |                                ^
+E:\withBoost\Qt\Back\Models\UserModel.cpp(83,46): error: reference to type 'const time_point' (aka 'const ::std::chrono::time_point<system_clock>') could not bind to an lvalue of type 'const long long'
+   83 |         std::chrono::system_clock::to_time_t(data.lastLogin));
+      |                                              ^~~~~~~~~~~~~~
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\chrono(92,66): note: passing argument to parameter '_Time' here
+   92 |         _NODISCARD static __time64_t to_time_t(const time_point& _Time) noexcept { // convert to __time64_t
+      |                                                                  ^
+2 errors generated.
+[2/13] Building CXX object Qt\Front\CMakeFiles\FrontEnd.dir\.qt\rcc\qrc_FrontEnd_raw_qml_0.cpp.obj
+ninja: build stopped: subcommand failed.

@@ -1,4 +1,4 @@
-﻿#include "DeviceModel.hpp"
+#include "DeviceModel.hpp"
 #include <QDateTime>
 
 DeviceModel::DeviceModel(QObject *parent) : QAbstractListModel(parent) {}
@@ -57,69 +57,32 @@ QHash<int, QByteArray> DeviceModel::roleNames() const {
           {HasHeaterRole, "hasHeater"}};
 }
 
-// ── onStoreUpdated ───────────────────────────────────────────────────────────
-void DeviceModel::onStoreUpdated(std::vector<DeviceIntegrated> snapshot) {
-  // IP 기반 업데이트
-  for (const auto &snap : snapshot) {
-    QString ip = QString::fromStdString(snap.ip);
-    int idx = findIndexByIp(ip);
-
-    if (idx >= 0) {
-      // 기존 항목 업데이트
-      auto &entry = devices_[idx];
-
-      entry.cameraId = QString::fromStdString(snap.cameraId);
-      entry.type = QString::fromStdString(snap.type);
-      entry.isOnline = snap.isOnline;
-      entry.cpu = snap.cpu;
-      entry.memory = snap.memory;
-      entry.temp = snap.temp;
-      entry.uptime = snap.uptime;
-      entry.lastUpdate = snap.lastUpdate;
-      entry.hasMotor = snap.hasMotor;
-      entry.hasIr = snap.hasIr;
-      entry.hasHeater = snap.hasHeater;
-
-      // History 업데이트
-      entry.history =
-          QList<DeviceSnapshot>(snap.history.begin(), snap.history.end());
-
-      emit dataChanged(createIndex(idx, 0), createIndex(idx, 0));
-      emit historyUpdated(ip);
-
-    } else {
-      // 신규 항목 추가
+// ── refreshFromCameraManager ───────────────────────────────────────────────────────────
+void DeviceModel::refreshFromCameraManager() {
+  if (!cameraManager_) return;
+  beginResetModel();
+  devices_.clear();
+  byIp_.clear();
+  
+  for (auto& [id, info] : cameraManager_->getCameras()) {
+      QString ip = QString::fromStdString(info.ip_);
+      QString cid = QString::fromStdString(
+          info.ip_ + "/" + std::to_string(info.index_));
+      
       DeviceEntry entry;
       entry.ip = ip;
-      entry.cameraId = QString::fromStdString(snap.cameraId);
-      entry.type = QString::fromStdString(snap.type);
-      entry.isOnline = snap.isOnline;
-      entry.cpu = snap.cpu;
-      entry.memory = snap.memory;
-      entry.temp = snap.temp;
-      entry.uptime = snap.uptime;
-      entry.lastUpdate = snap.lastUpdate;
-      entry.hasMotor = snap.hasMotor;
-      entry.hasIr = snap.hasIr;
-      entry.hasHeater = snap.hasHeater;
-
-      for (const auto &h : snap.history) {
-        entry.history.append(h);
-      }
-
-      beginInsertRows(QModelIndex(), devices_.size(), devices_.size());
+      entry.cameraId = cid;
+      entry.isOnline = true;
+      entry.temp = info.MetaData_.tmp_.empty() ? 0.0 : info.MetaData_.tmp_.back();
+      // hum/light/tilt map to device sensors
+      entry.hasMotor = true;
+      entry.hasIr = info.Status_.ir_on;
+      entry.hasHeater = info.Status_.heater_on;
+      
       devices_.append(entry);
-      endInsertRows();
-
-      emit historyUpdated(ip);
-    }
+      byIp_[ip] = devices_.size() - 1;
   }
-
-  // Rebuild byIp_
-  byIp_.clear();
-  for (int i = 0; i < devices_.size(); ++i) {
-    byIp_[devices_[i].ip] = i;
-  }
+  endResetModel();
 }
 
 // ── QML 조회 함수 ────────────────────────────────────────────────────────────
@@ -172,6 +135,24 @@ QVariantList DeviceModel::getHistory(const QString &ip) const {
   return result;
 }
 
+QVariantList DeviceModel::getMetaHistory(const QString& cameraId, const QString& field) const {
+    if (!cameraManager_) return {};
+    auto* cam = cameraManager_->Get(cameraId.toStdString());
+    if (!cam) return {};
+    
+    const auto& toList = [](const std::deque<float>& d) {
+        QVariantList list;
+        for (float v : d) list.append(static_cast<double>(v));
+        return list;
+    };
+    
+    if (field == "tmp")   return toList(cam->MetaData_.tmp_);
+    if (field == "tilt")  return toList(cam->MetaData_.tilt_);
+    if (field == "light") return toList(cam->MetaData_.light_);
+    if (field == "hum")   return toList(cam->MetaData_.hum_);
+    return {};
+}
+
 // --- cameraId-based lookup methods ---
 
 int DeviceModel::findIndexByCameraId(const QString &cameraId) const {
@@ -188,18 +169,21 @@ QString DeviceModel::deviceIp(const QString &cameraId) const {
 }
 
 bool DeviceModel::hasMotor(const QString &cameraId) const {
-  int idx = findIndexByCameraId(cameraId);
-  return idx >= 0 ? devices_[idx].hasMotor : false;
+    if (!cameraManager_) return false;
+    auto* cam = cameraManager_->Get(cameraId.toStdString());
+    return cam ? cam->Status_.motor_auto : false;
 }
 
 bool DeviceModel::hasIr(const QString &cameraId) const {
-  int idx = findIndexByCameraId(cameraId);
-  return idx >= 0 ? devices_[idx].hasIr : false;
+    if (!cameraManager_) return false;
+    auto* cam = cameraManager_->Get(cameraId.toStdString());
+    return cam ? cam->Status_.ir_on : false;
 }
 
 bool DeviceModel::hasHeater(const QString &cameraId) const {
-  int idx = findIndexByCameraId(cameraId);
-  return idx >= 0 ? devices_[idx].hasHeater : false;
+    if (!cameraManager_) return false;
+    auto* cam = cameraManager_->Get(cameraId.toStdString());
+    return cam ? cam->Status_.heater_on : false;
 }
 
 bool DeviceModel::hasDeviceByCameraId(const QString &cameraId) const {

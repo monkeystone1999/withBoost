@@ -16,7 +16,6 @@
 #include "Qt/Back/Services/VideoStream.hpp"
 #include <QGuiApplication>
 #include <QIcon>
-#include <QQmlAbstractUrlInterceptor>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
 #include <QWKQuick/qwkquickglobal.h>
@@ -24,17 +23,6 @@
 
 Q_IMPORT_QML_PLUGIN(AnoMap_FrontPlugin)
 
-// Fixes a case-sensitivity issue in QML import paths on case-sensitive
-// file systems that may have been generated with "Pages/".
-class PathCaseInterceptor : public QQmlAbstractUrlInterceptor {
-public:
-  QUrl intercept(const QUrl &path, DataType) override {
-    QString s = path.toString();
-    if (s.contains("/Pages/"))
-      s.replace("/Pages/", "/pages/");
-    return QUrl(s);
-  }
-};
 
 int main(int argc, char **argv) {
   QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
@@ -45,9 +33,6 @@ int main(int argc, char **argv) {
     app.setWindowIcon(appIcon);
   }
   QQmlApplicationEngine engine;
-
-  PathCaseInterceptor interceptor;
-  engine.setUrlInterceptor(&interceptor);
   QWK::registerTypes(&engine);
 
   QObject::connect(

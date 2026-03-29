@@ -1,4 +1,4 @@
-﻿# @file Qt/Back/CMakeLists.txt
+# @file Qt/Back/CMakeLists.txt
 # @brief Qt 기반 백엔드 로직 라이브러리 (BackEnd) 구성 파일
 #
 # 이 파일은 QML 레이어와 통신하는 C++ 모델 및 컨트롤러들을 관리합니다.
@@ -34,8 +34,6 @@ qt_add_library(BackEnd STATIC
     # Services
     Services/AlarmManager.hpp
     Services/AlarmManager.cpp
-    Services/NetworkBridge.hpp
-    Services/NetworkBridge.cpp
     Services/ServerStatus.hpp
     Services/ServerStatus.cpp
     Services/VideoStream.hpp

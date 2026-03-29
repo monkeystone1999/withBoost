@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QWindowKit
 import AnoMap.Front
@@ -28,35 +28,35 @@ Window {
         function onNavigateTo(page) {
             switch (page) {
             case "Login":
-                stackView.replace(null, "pages/LoginPage.qml");
+                stackView.replace(null, "Page/LoginPage.qml");
                 break;
             case "Signup":
-                stackView.replace(null, "pages/SignupPage.qml");
+                stackView.replace(null, "Page/SignupPage.qml");
                 break;
             case "Back":
                 if (stackView.depth > 1)
                     stackView.pop();
                 else{
-                    stackView.replace(null, "pages/LoginPage.qml");
+                    stackView.replace(null, "Page/LoginPage.qml");
                 }
                 break;
             case "Dashboard":
                 if (stackView.depth > 1)
                     stackView.pop(null);
                 else
-                    stackView.replace(null, "pages/DashboardPage.qml");
+                    stackView.replace(null, "Page/DashboardPage.qml");
                 break;
             case "AI":
-                stackView.replace(null, "pages/AiPage.qml");
+                stackView.replace(null, "Page/AiPage.qml");
                 break;
             case "Device":
-                stackView.replace(null, "pages/DevicePage.qml");
+                stackView.replace(null, "Page/DevicePage.qml");
                 break;
             case "MyPage":
-                stackView.replace(null, "pages/MyPage.qml");
+                stackView.replace(null, "Page/MyPage.qml");
                 break;
             case "AdminDashboard":
-                stackView.replace(null, "pages/AdminPage.qml");
+                stackView.replace(null, "Page/AdminPage.qml");
                 break;
             }
         }
@@ -96,7 +96,7 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        initialItem: "pages/LoginPage.qml"
+        initialItem: "Page/LoginPage.qml"
 
         pushEnter: Transition {
             ParallelAnimation {

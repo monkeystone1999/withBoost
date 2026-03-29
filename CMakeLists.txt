@@ -30,7 +30,7 @@ include(cmake/FindFFmpeg.cmake)
 
 # ===== QWindowKit Configuration =====
 # @note 커스텀 윈도우 프레임을 위한 QWindowKit 라이브러리 설정
-include(SetupQWindowKit)
+include(cmake/SetupQWindowKit.cmake)
 
 qt_standard_project_setup(REQUIRES 6.8)
 

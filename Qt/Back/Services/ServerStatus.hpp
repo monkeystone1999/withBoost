@@ -1,5 +1,5 @@
-﻿#pragma once
-#include "../../Src/Domain/ServerStatus.hpp"
+#pragma once
+#include <string>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -7,6 +7,19 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <vector>
+
+struct ServerStatusDeviceData {
+    std::string ip;
+    double cpu = 0, memory = 0, temp = 0;
+    int uptime = 0, pendingEvents = 0;
+};
+struct ServerStatusData {
+    double cpu = 0, memory = 0, temp = 0;
+    int uptime = 0;
+    bool available = false;
+    long long timestamp = 0;
+    std::vector<ServerStatusDeviceData> devices;
+};
 
 struct DeviceStatus {
   QString ip;

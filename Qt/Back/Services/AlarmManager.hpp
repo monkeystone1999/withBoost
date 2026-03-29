@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 
-#include "../../Src/Domain/Alarm.hpp"
+#include "../Controllers/AlarmController.hpp"
+class AlarmDispatcher;
 #include <QObject>
 #include <QString>
 

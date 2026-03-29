@@ -1,11 +1,19 @@
-﻿#pragma once
-#include "../../Src/Domain/Device.hpp"
+#pragma once
+#include "../../Src/Domain/CameraManager.hpp"
 #include <QAbstractListModel>
 #include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
 #include <vector>
+
+struct DeviceSnapshot {
+    qint64 timestamp = 0;
+    double cpu = 0.0;
+    double memory = 0.0;
+    double temp = 0.0;
+    int uptime = 0;
+};
 
 // ── DeviceEntry (Qt용 변환) ──────────────────────────────────────────────────
 struct DeviceEntry {
@@ -65,7 +73,10 @@ signals:
   void historyUpdated(const QString &ip);
 
 public:
-  // cameraId-based lookup (for QML calls with Camera IDs)
+  void setCameraManager(CameraManager* mgr) { cameraManager_ = mgr; }
+  Q_INVOKABLE void refreshFromCameraManager();
+  Q_INVOKABLE QVariantList getMetaHistory(const QString& cameraId, const QString& field) const;
+
   Q_INVOKABLE QString deviceIp(const QString &cameraId) const;
   Q_INVOKABLE bool hasMotor(const QString &cameraId) const;
   Q_INVOKABLE bool hasIr(const QString &cameraId) const;
@@ -73,13 +84,12 @@ public:
   Q_INVOKABLE bool hasDeviceByCameraId(const QString &cameraId) const;
 
 public slots:
-  // Called by Core (GUI thread) with pre-parsed snapshot
-  void onStoreUpdated(std::vector<DeviceIntegrated> snapshot);
   void clearAll();
 
 private:
   int findIndexByCameraId(const QString &cameraId) const;
 
+  CameraManager* cameraManager_ = nullptr;
   QList<DeviceEntry> devices_;
   QHash<QString, int> byIp_; // IP -> row index
 };

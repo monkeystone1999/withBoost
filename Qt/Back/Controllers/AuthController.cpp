@@ -1,8 +1,9 @@
-﻿#include "AuthController.hpp"
+#include "AuthController.hpp"
 
-AuthController::AuthController(NetworkBridge *bridge, const QString &host,
+// [DEPRECATED] NetworkBridge 기반 생성자 — TODO: ServerConnect 기반으로 전환
+AuthController::AuthController(/*NetworkBridge *bridge,*/ const QString &host,
                                const QString &port, QObject *parent)
-    : QObject(parent), bridge_(bridge), host_(host), port_(port) {}
+    : QObject(parent), /*bridge_(bridge),*/ host_(host), port_(port) {}
 
 void AuthController::setLoading(bool v) {
   if (isLoading_ == v)
@@ -27,17 +28,17 @@ void AuthController::clearError() {
 
 // ------------------------------------------------------------------
 
-LoginController::LoginController(NetworkBridge *bridge, const QString &host,
+LoginController::LoginController(/*NetworkBridge *bridge,*/ const QString &host,
                                  const QString &port, QObject *parent)
-    : AuthController(bridge, host, port, parent) {
+    : AuthController(/*bridge,*/ host, port, parent) {
+  // [DEPRECATED] NetworkBridge 시그널 연결
+  /*
   if (bridge_) {
-    connect(bridge_, &NetworkBridge::loginSuccess, this,
-            &LoginController::handleLoginSuccess);
-    connect(bridge_, &NetworkBridge::loginFailed, this,
-            &LoginController::handleLoginFailed);
-    connect(bridge_, &NetworkBridge::connectedForLogin, this,
-            &LoginController::onConnected);
+    connect(bridge_, &NetworkBridge::loginSuccess, this, &LoginController::handleLoginSuccess);
+    connect(bridge_, &NetworkBridge::loginFailed, this, &LoginController::handleLoginFailed);
+    connect(bridge_, &NetworkBridge::connectedForLogin, this, &LoginController::onConnected);
   }
+  */
 }
 
 void LoginController::login(const QString &id, const QString &password) {
@@ -51,79 +52,68 @@ void LoginController::login(const QString &id, const QString &password) {
   pendingId_ = id;
   pendingPassword_ = password;
 
+  // TODO: ServerConnect::Send() 기반으로 전환
+  /*
   if (bridge_) {
     if (bridge_->isConnected()) {
       onConnected();
     } else {
       bridge_->connectToServer(host_, port_, "login");
     }
-  } else {
   }
+  */
 }
 
 void LoginController::onConnected() {
+  // TODO: ServerConnect::Send(MessageType::LOGIN, ...) 호출
+  /*
   if (bridge_ && !pendingId_.isEmpty()) {
     bridge_->sendLogin(pendingId_, pendingPassword_);
     pendingId_.clear();
     pendingPassword_.clear();
   }
+  */
 }
 
 void LoginController::handleLoginSuccess(QString state, QString username) {
   setLoading(false);
-
   state_ = state;
   emit stateChanged();
-
   username_ = username;
   emit usernameChanged();
-
   emit loginSuccess();
 }
 
 void LoginController::handleLoginFailed(QString error) {
   setLoading(false);
-
-  if (bridge_) {
-    bridge_->disconnect();
-  }
-
   setError(error);
 }
 
 void LoginController::logout() {
-  if (bridge_) {
-    bridge_->disconnect();
-  }
-
   state_.clear();
   emit stateChanged();
-
   username_.clear();
   emit usernameChanged();
-
   pendingId_.clear();
   pendingPassword_.clear();
-
   setLoading(false);
   clearError();
-
   emit logoutRequested();
 }
 
 // ------------------------------------------------------------------
 
-SignupController::SignupController(NetworkBridge *bridge, const QString &host,
+SignupController::SignupController(/*NetworkBridge *bridge,*/ const QString &host,
                                    const QString &port, QObject *parent)
-    : AuthController(bridge, host, port, parent) {
+    : AuthController(/*bridge,*/ host, port, parent) {
+  // [DEPRECATED] NetworkBridge 시그널 연결
+  /*
   if (bridge_) {
-    connect(bridge_, &NetworkBridge::signupSuccess, this,
-            &SignupController::handleSignupSuccess);
-    connect(bridge_, &NetworkBridge::signupFailed, this,
-            &SignupController::handleSignupFailed);
-    connect(bridge_, &NetworkBridge::connectedForSignup, this,
-            &SignupController::onConnected);
+    connect(bridge_, &NetworkBridge::signupSuccess, this, &SignupController::handleSignupSuccess);
+    connect(bridge_, &NetworkBridge::signupFailed, this, &SignupController::handleSignupFailed);
+    connect(bridge_, &NetworkBridge::connectedForSignup, this, &SignupController::onConnected);
   }
+  */
 }
 
 void SignupController::signup(const QString &id, const QString &email,
@@ -134,27 +124,14 @@ void SignupController::signup(const QString &id, const QString &email,
   }
   clearError();
   setLoading(true);
-
   pendingId_ = id;
   pendingEmail_ = email;
   pendingPassword_ = password;
-
-  if (bridge_) {
-    if (bridge_->isConnected()) {
-      onConnected();
-    } else {
-      bridge_->connectToServer(host_, port_, "signup");
-    }
-  }
+  // TODO: ServerConnect::Send(MessageType::ASSIGN, ...) 호출
 }
 
 void SignupController::onConnected() {
-  if (bridge_ && !pendingId_.isEmpty()) {
-    bridge_->sendSignup(pendingId_, pendingEmail_, pendingPassword_);
-    pendingId_.clear();
-    pendingEmail_.clear();
-    pendingPassword_.clear();
-  }
+  // TODO: ServerConnect 기반 전환
 }
 
 void SignupController::handleSignupSuccess(QString message) {

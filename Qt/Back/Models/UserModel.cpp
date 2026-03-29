@@ -1,4 +1,4 @@
-﻿#include "UserModel.hpp"
+#include "UserModel.hpp"
 
 UserModel::UserModel(QObject *parent) : QAbstractListModel(parent) {}
 
@@ -77,10 +77,9 @@ void UserModel::onStoreUpdated(std::vector<UserData> snapshot) {
     entry.userId = QString::fromStdString(data.userId);
     entry.username = QString::fromStdString(data.username);
     entry.email = QString::fromStdString(data.email);
-    entry.role = (data.role == UserRole::Admin) ? "admin" : "user";
+    entry.role = QString::fromStdString(data.role);
     entry.isOnline = data.isOnline;
-    entry.lastLogin = QDateTime::fromSecsSinceEpoch(
-        std::chrono::system_clock::to_time_t(data.lastLogin));
+    entry.lastLogin = QDateTime::fromSecsSinceEpoch(data.lastLogin);
     entry.ipAddress = QString::fromStdString(data.ipAddress);
     entry.activeCameras = data.activeCameras;
 

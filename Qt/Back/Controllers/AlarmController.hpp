@@ -1,9 +1,16 @@
 #pragma once
-#include "../../Src/Domain/Alarm.hpp"
+#include <string>
 #include <QObject>
 #include <QString>
 #include <QVariantList>
 #include <QtTypes>
+
+struct AlarmEvent {
+    qint64 id = 0;
+    std::string title;
+    std::string detail;
+    int severity = 0;
+};
 
 // ============================================================
 //  AlarmController — 알람 큐 관리 (C++)
