@@ -160,6 +160,24 @@ int CameraModel::_indexBySlotId(int slotId) const {
   return -1;
 }
 
+void CameraModel::_emitSlotsUpdated() {
+  QList<SlotInfo> SlotList;
+  for (const auto &c : cameras_) {
+    SlotInfo s;
+    s.slotId = c.slotId;
+    s.cameraId = c.cameraId;
+    SlotList.append(s);
+  }
+  emit slotsUpdated(SlotList);
+
+  QStringList cids;
+  for (const auto &c : cameras_) {
+    if (!cids.contains(c.cameraId))
+      cids.append(c.cameraId);
+  }
+  emit cameraIdsUpdated(cids);
+}
+
 bool CameraModel::_splitSlotAtIndex(int rowIndex, int tileCount,
                                     SplitDirection direction, bool autoSplit) {
   if (rowIndex < 0 || rowIndex >= cameras_.size())
@@ -351,13 +369,15 @@ QString CameraModel::cameraIdForSlot(int slotId) const {
   return cameras_[idx].cameraId;
 }
 
-void CameraModel::onStoreUpdated(std::vector<CameraData> snapshot) {
-  QHash<QString, CameraData> snapshotByCid;
-  for (const auto &cam : snapshot) {
-    const QString cid = QString::fromStdString(cam.cameraId);
-    if (cid.isEmpty())
-      continue;
-    snapshotByCid.insert(cid, cam);
+void CameraModel::refreshFromCameraManager() {
+  if (!cameraManager_)
+    return;
+
+  QHash<QString, CameraInfo *> snapshotByCid;
+  for (auto &pair : cameraManager_->getCameras()) {
+    QString cid = QString::fromStdString(pair.second.ip_) + "/" +
+                  QString::number(pair.second.index_);
+    snapshotByCid.insert(cid, &pair.second);
   }
 
   QSet<QString> representedCids;
@@ -378,29 +398,23 @@ void CameraModel::onStoreUpdated(std::vector<CameraData> snapshot) {
         changedRoles << IsOnlineRole;
       }
     } else {
-      const CameraData &snap = it.value();
+      CameraInfo *snap = it.value();
       representedCids.insert(entry.cameraId);
+      bool snapOnline = true; // Assume online if it's in CameraManager
 
-      if (entry.isOnline != snap.isOnline) {
+      if (entry.isOnline != snapOnline) {
         const bool wasOffline = !entry.isOnline;
-        entry.isOnline = snap.isOnline;
+        entry.isOnline = snapOnline;
         changed = true;
         changedRoles << IsOnlineRole;
-        // Emit reconnection signal when coming back online
-        if (wasOffline && snap.isOnline) {
+        if (wasOffline && snapOnline) {
           emit cameraOnline(entry.cameraId);
         }
       }
 
-      QString snapType = QString::fromStdString(snap.cameraType);
-      if (entry.cameraType != snapType) {
-        entry.cameraType = snapType;
-        changed = true;
-        changedRoles << CameraTypeRole;
-      }
-
       if (entry.splitCount == 1) {
-        QString snapTitle = QString::fromStdString(snap.title);
+        QString snapTitle = entry.cameraId; // Use ID as title since Src doesn't
+                                            // store display titles
         if (entry.title != snapTitle) {
           entry.title = snapTitle;
           changed = true;
@@ -421,13 +435,12 @@ void CameraModel::onStoreUpdated(std::vector<CameraData> snapshot) {
     if (representedCids.contains(it.key()))
       continue;
 
-    const CameraData &snap = it.value();
     CameraEntry e;
     e.slotId = nextSlotId_++;
-    e.title = QString::fromStdString(snap.title);
+    e.title = it.key();
     e.cameraId = it.key();
-    e.isOnline = snap.isOnline;
-    e.cameraType = QString::fromStdString(snap.cameraType);
+    e.isOnline = true;
+    e.cameraType = "Unknown";
     e.splitCount = 1;
     e.cropRect = {0, 0, 1, 1};
     e.splitGroupId = -1;
@@ -455,36 +468,21 @@ void CameraModel::onStoreUpdated(std::vector<CameraData> snapshot) {
     applyAutoSplitForSlot(slotId);
 }
 
-void CameraModel::_emitSlotsUpdated() {
-  QList<SlotInfo> slotList;
-  QStringList cids;
-  QSet<QString> seenCids;
-  slotList.reserve(cameras_.size());
-  for (const auto &cam : cameras_) {
-    slotList.append({cam.slotId, cam.cameraId});
-    if (!cam.cameraId.isEmpty() && !seenCids.contains(cam.cameraId)) {
-      seenCids.insert(cam.cameraId);
-      cids << cam.cameraId;
-    }
-  }
-  emit slotsUpdated(slotList);
-  emit cameraIdsUpdated(cids);
-}
+void CameraModel::refreshSensorInfo() {
+  if (!cameraManager_)
+    return;
+  bool anyUpdated = false;
 
-void CameraModel::updateSensorInfo(const QString &cameraId, double hum,
-                                   double light, double tilt, double tmp) {
-  bool updated = false;
   for (int i = 0; i < cameras_.size(); ++i) {
-    if (cameras_[i].cameraId == cameraId) {
-      cameras_[i].deviceInfo.hum = hum;
-      cameras_[i].deviceInfo.light = light;
-      cameras_[i].deviceInfo.tilt = tilt;
-      cameras_[i].deviceInfo.tmp = tmp;
-      updated = true;
+    auto *info = cameraManager_->Get(cameras_[i].cameraId.toStdString());
+    if (info && !info->MetaData_.tmp_.empty()) {
+      cameras_[i].deviceInfo.hum = info->MetaData_.hum_.front();
+      cameras_[i].deviceInfo.light = info->MetaData_.light_.front();
+      cameras_[i].deviceInfo.tilt = info->MetaData_.tilt_.front();
+      cameras_[i].deviceInfo.tmp = info->MetaData_.tmp_.front();
+      anyUpdated = true;
+      emit sensorDataUpdated(cameras_[i].cameraId);
     }
-  }
-  if (updated) {
-    emit sensorDataUpdated(cameraId);
   }
 }
 
@@ -501,3 +499,26 @@ QJsonObject CameraModel::sensorInfoForCameraId(const QString &cameraId) const {
   }
   return obj;
 }
+
+/**
+ * @section Workflow Guide
+ *
+ * **[CameraModel 핵심 도메인 로직 가이드]**
+ *
+ * 1. 슬롯 기반 위치 관리 (Virtual ID System):
+ *    - 사용자가 그리드에서 항목을 드래그하여 순서를 바꿀 때(`swapSlots`), 내부
+ * 데이터 엔트리는 교환되지만 `slotId`는 유지됩니다.
+ *    - 이는 해당 카메라를 추적하는 외부 윈도우나 비디오 소켓이 위치 변경에
+ * 영향을 받지 않도록 설계된 아키텍처적 장치입니다.
+ *
+ * 2. 동적 화면 분할 (Camera Splitting):
+ *    - `beginRemoveRows` / `beginInsertRows` 매크로를 사용하여 QML 리스트 뷰가
+ * 부드러운 애니메이션과 함께 타일 생성을 처리할 수 있도록 동기화합니다.
+ *    - 분할 시 소스 카메라 주소(`cameraId`)는 동일하게 공유되지만, 각 엔트리는
+ * 고유의 `CropRect`를 가져 셰이더 단계에서 다른 영역을 렌더링하게 됩니다.
+ *
+ * 3. 기기 센서 데이터 허브:
+ *    - `updateSensorInfo`는 특정 카메라 ID를 가진 모든 슬롯(분할된 타일 포함)에
+ * 대해 텔레메트리 값을 일괄 갱신하며, `sensorDataUpdated` 시그널 하나로
+ * 최적화된 QML 바인딩 갱신을 수행합니다.
+ */

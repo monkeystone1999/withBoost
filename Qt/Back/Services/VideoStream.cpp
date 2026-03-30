@@ -1,9 +1,10 @@
 #include "VideoStream.hpp"
-#include "../../Src/Network/VideoEngine.hpp"
 #include "../../Src/Domain/CameraManager.hpp"
+#include "../../Src/Network/VideoEngine.hpp"
 #include <QDebug>
 #include <QMetaObject>
 #include <QTimerEvent>
+
 
 VideoWorker::VideoWorker(const QString &cameraId, QObject *parent)
     : QObject(parent), cameraId_(cameraId) {}
@@ -14,63 +15,68 @@ void VideoWorker::startStream() {
   if (!videoEngine_ || connectionString_.isEmpty())
     return;
 
-  videoEngine_->onFrameReady = [this](const VideoEngine::FramePayload &payload) {
-    if (!payload.dataY || !payload.dataUV || payload.width <= 0 ||
-        payload.height <= 0)
-      return;
+  videoEngine_->onFrameReady =
+      [this](const VideoEngine::FramePayload &payload) {
+        if (!payload.dataY || !payload.dataUV || payload.width <= 0 ||
+            payload.height <= 0)
+          return;
 
-    int w = payload.width;
-    int h = payload.height;
+        int w = payload.width;
+        int h = payload.height;
 
-    QVideoFrameFormat format(QSize(w, h), QVideoFrameFormat::Format_NV12);
-    QVideoFrame frame(format);
+        QVideoFrameFormat format(QSize(w, h), QVideoFrameFormat::Format_NV12);
+        QVideoFrame frame(format);
 
-    if (frame.map(QVideoFrame::WriteOnly)) {
-      int y_size = w * h;
-      int uv_size = w * h / 2;
+        if (frame.map(QVideoFrame::WriteOnly)) {
+          int y_size = w * h;
+          int uv_size = w * h / 2;
 
-      // Copy Y plane
-      // Since NV12 Y-stride == width, we can use simple memcpy if stride
-      // matches exactly, but if padding exists, we should loop.
-      if (payload.strideY == w) {
-        std::memcpy(frame.bits(0), payload.dataY, y_size);
-      } else {
-        for (int i = 0; i < h; ++i) {
-          std::memcpy(frame.bits(0) + (i * w),
-                      payload.dataY + (i * payload.strideY), w);
+          // Copy Y plane
+          // Since NV12 Y-stride == width, we can use simple memcpy if stride
+          // matches exactly, but if padding exists, we should loop.
+          if (payload.strideY == w) {
+            std::memcpy(frame.bits(0), payload.dataY, y_size);
+          } else {
+            for (int i = 0; i < h; ++i) {
+              std::memcpy(frame.bits(0) + (i * w),
+                          payload.dataY + (i * payload.strideY), w);
+            }
+          }
+
+          // Copy UV plane
+          if (payload.strideUV == w) {
+            std::memcpy(frame.bits(1), payload.dataUV, uv_size);
+          } else {
+            for (int i = 0; i < h / 2; ++i) {
+              std::memcpy(frame.bits(1) + (i * w),
+                          payload.dataUV + (i * payload.strideUV), w);
+            }
+          }
+
+          frame.unmap();
+
+          while (frameSpinLock_.test_and_set(std::memory_order_acquire)) {
+          }
+          latestFrame_ = frame;
+          frameSpinLock_.clear(std::memory_order_release);
+          frameSeq_.fetch_add(1, std::memory_order_release);
+
+          emit frameReady(frame);
         }
-      }
-
-      // Copy UV plane
-      if (payload.strideUV == w) {
-        std::memcpy(frame.bits(1), payload.dataUV, uv_size);
-      } else {
-        for (int i = 0; i < h / 2; ++i) {
-          std::memcpy(frame.bits(1) + (i * w),
-                      payload.dataUV + (i * payload.strideUV), w);
-        }
-      }
-
-      frame.unmap();
-
-      while (frameSpinLock_.test_and_set(std::memory_order_acquire)) {
-      }
-      latestFrame_ = frame;
-      frameSpinLock_.clear(std::memory_order_release);
-      frameSeq_.fetch_add(1, std::memory_order_release);
-
-      emit frameReady(frame);
-    }
-  };
+      };
 
   videoEngine_->startStream(connectionString_.toStdString(), fpsLimit_);
 }
 
-void VideoWorker::stopStream() { if (videoEngine_) videoEngine_->stopStream(); }
+void VideoWorker::stopStream() {
+  if (videoEngine_)
+    videoEngine_->stopStream();
+}
 
 void VideoWorker::setFpsLimit(int fps) {
   fpsLimit_ = fps;
-  if (videoEngine_) videoEngine_->setFpsLimit(fps);
+  if (videoEngine_)
+    videoEngine_->setFpsLimit(fps);
 }
 
 VideoManager::VideoManager(QObject *parent) : QObject(parent) {}
@@ -111,7 +117,7 @@ void VideoManager::registerSlots(const QList<SlotInfo> &Slots) {
       continue;
     auto *worker = new VideoWorker(si.cameraId, this);
     if (cameraManager_) {
-      auto* cam = cameraManager_->Get(si.cameraId.toStdString());
+      auto *cam = cameraManager_->Get(si.cameraId.toStdString());
       if (cam && cam->video_)
         worker->setVideoEngine(cam->video_.get());
     }
@@ -133,7 +139,7 @@ void VideoManager::registerCameraIds(const QStringList &cameraIds) {
       continue;
     auto *worker = new VideoWorker(id, this);
     if (cameraManager_) {
-      auto* cam = cameraManager_->Get(id.toStdString());
+      auto *cam = cameraManager_->Get(id.toStdString());
       if (cam && cam->video_)
         worker->setVideoEngine(cam->video_.get());
     }
@@ -156,7 +162,7 @@ void VideoManager::restartWorker(const QString &cameraId) {
       return;
     worker = new VideoWorker(cameraId, this);
     if (cameraManager_) {
-      auto* cam = cameraManager_->Get(cameraId.toStdString());
+      auto *cam = cameraManager_->Get(cameraId.toStdString());
       if (cam && cam->video_)
         worker->setVideoEngine(cam->video_.get());
     }
@@ -287,3 +293,26 @@ void VideoStream::timerEvent(QTimerEvent *event) {
     QObject::timerEvent(event);
   }
 }
+
+/**
+ * @section Workflow Guide
+ *
+ * **[VideoStream 데이터 처리 기법 상세]**
+ *
+ * 1. NV12 프레임 변환 (Fast Path):
+ *    - 코어 엔진의 FramePayload 데이터는 메모리 레이아웃이 NV12 형태로 고정되어
+ * 있습니다.
+ *    - `QVideoFrameFormat::Format_NV12`를 사용하여 중간 변환 과정 없이 Y, UV
+ * 평면을 직접 복사함으로써 CPU 오버헤드를 극대화로 줄였습니다.
+ *
+ * 2. 스레드 동기화 (Lockless design 지향):
+ *    - `VideoWorker`는 `std::atomic_flag` 기반의 스핀락을 사용하여 코어 엔진의
+ * 쓰기 스레드와 `VideoStream`의 읽기 타이머 간의 데이터 정합성을 보장합니다.
+ *    - 무거운 뮤텍스 대신 초고속 스핀락을 사용하여 비디오 레이턴시를
+ * 최소화하였습니다.
+ *
+ * 3. 렌더링 스케줄링:
+ *    - 실시간 60FPS 환경에서도 화면 깜빡임을 방지하기 위해 `m_lastSeq` 비교
+ * 방식을 사용하여 이중 렌더링을 방지하고 정확히 새로운 프레임이 도착했을 때만
+ * `QVideoSink`를 업데이트합니다.
+ */

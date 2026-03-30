@@ -104,3 +104,23 @@ void SettingsController::load() {
     defaultResolution_ = resolutions_.first();
   }
 }
+
+/**
+ * @section Workflow Guide
+ *
+ * **[SettingsController 구현 세부 로직]**
+ *
+ * 1. 하이브리드 설정 소스:
+ *    - `QSettings`를 사용하여 레지스트리 또는 OS 표준 위치에 사용자 환경 설정을
+ * 저장함으로써 앱 재시작 시에도 테마 등이 유지되도록 합니다.
+ *    - 고정된 시스템 인프라 정보(`ServerIP`, `FPS`)는 실행 파일 경로의
+ * `Settings.json`을 직접 파싱하여 획득합니다.
+ *
+ * 2. 예외 처리:
+ *    - JSON 파일이 없거나 FPS 값이 비정상적(<= 0)일 경우, 하드코딩된 기본값(30
+ * FPS)을 안전하게 복구(Fallback)합니다.
+ *
+ * 3. QML 프로퍼티 통지:
+ *    - JSON 데이터 로드 시에도 `emit` 시그널을 호출하여, 앱 초기화 단계에서
+ * UI가 즉시 올바른 서버 정보를 표시하도록 보장합니다.
+ */

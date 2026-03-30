@@ -2,7 +2,7 @@
 import QtQuick.Controls
 import QtQuick.Layouts
 import AnoMap.Front
-import "../layouts"
+import "../Layout"
 import "../Component/Camera"
 
 Item {

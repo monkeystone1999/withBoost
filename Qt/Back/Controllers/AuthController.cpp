@@ -1,9 +1,10 @@
 #include "AuthController.hpp"
+#include "../../../Src/Domain/AuthBridge.hpp"
+#include <nlohmann/json.hpp>
 
-// [DEPRECATED] NetworkBridge 기반 생성자 — TODO: ServerConnect 기반으로 전환
-AuthController::AuthController(/*NetworkBridge *bridge,*/ const QString &host,
-                               const QString &port, QObject *parent)
-    : QObject(parent), /*bridge_(bridge),*/ host_(host), port_(port) {}
+AuthController::AuthController(const QString &host, const QString &port,
+                               class AuthBridge *bridge, QObject *parent)
+    : QObject(parent), host_(host), port_(port), bridge_(bridge) {}
 
 void AuthController::setLoading(bool v) {
   if (isLoading_ == v)
@@ -28,15 +29,17 @@ void AuthController::clearError() {
 
 // ------------------------------------------------------------------
 
-LoginController::LoginController(/*NetworkBridge *bridge,*/ const QString &host,
-                                 const QString &port, QObject *parent)
-    : AuthController(/*bridge,*/ host, port, parent) {
+LoginController::LoginController(const QString &host, const QString &port,
+                                 class AuthBridge *bridge, QObject *parent)
+    : AuthController(host, port, bridge, parent) {
   // [DEPRECATED] NetworkBridge 시그널 연결
   /*
   if (bridge_) {
-    connect(bridge_, &NetworkBridge::loginSuccess, this, &LoginController::handleLoginSuccess);
-    connect(bridge_, &NetworkBridge::loginFailed, this, &LoginController::handleLoginFailed);
-    connect(bridge_, &NetworkBridge::connectedForLogin, this, &LoginController::onConnected);
+    connect(bridge_, &NetworkBridge::loginSuccess, this,
+  &LoginController::handleLoginSuccess); connect(bridge_,
+  &NetworkBridge::loginFailed, this, &LoginController::handleLoginFailed);
+    connect(bridge_, &NetworkBridge::connectedForLogin, this,
+  &LoginController::onConnected);
   }
   */
 }
@@ -52,27 +55,17 @@ void LoginController::login(const QString &id, const QString &password) {
   pendingId_ = id;
   pendingPassword_ = password;
 
-  // TODO: ServerConnect::Send() 기반으로 전환
-  /*
   if (bridge_) {
-    if (bridge_->isConnected()) {
-      onConnected();
-    } else {
-      bridge_->connectToServer(host_, port_, "login");
-    }
+    onConnected();
   }
-  */
 }
 
 void LoginController::onConnected() {
-  // TODO: ServerConnect::Send(MessageType::LOGIN, ...) 호출
-  /*
   if (bridge_ && !pendingId_.isEmpty()) {
-    bridge_->sendLogin(pendingId_, pendingPassword_);
+    bridge_->login(pendingId_.toStdString(), pendingPassword_.toStdString());
     pendingId_.clear();
     pendingPassword_.clear();
   }
-  */
 }
 
 void LoginController::handleLoginSuccess(QString state, QString username) {
@@ -103,15 +96,17 @@ void LoginController::logout() {
 
 // ------------------------------------------------------------------
 
-SignupController::SignupController(/*NetworkBridge *bridge,*/ const QString &host,
-                                   const QString &port, QObject *parent)
-    : AuthController(/*bridge,*/ host, port, parent) {
+SignupController::SignupController(const QString &host, const QString &port,
+                                   class AuthBridge *bridge, QObject *parent)
+    : AuthController(host, port, bridge, parent) {
   // [DEPRECATED] NetworkBridge 시그널 연결
   /*
   if (bridge_) {
-    connect(bridge_, &NetworkBridge::signupSuccess, this, &SignupController::handleSignupSuccess);
-    connect(bridge_, &NetworkBridge::signupFailed, this, &SignupController::handleSignupFailed);
-    connect(bridge_, &NetworkBridge::connectedForSignup, this, &SignupController::onConnected);
+    connect(bridge_, &NetworkBridge::signupSuccess, this,
+  &SignupController::handleSignupSuccess); connect(bridge_,
+  &NetworkBridge::signupFailed, this, &SignupController::handleSignupFailed);
+    connect(bridge_, &NetworkBridge::connectedForSignup, this,
+  &SignupController::onConnected);
   }
   */
 }
@@ -143,3 +138,23 @@ void SignupController::handleSignupFailed(QString error) {
   setLoading(false);
   setError(error);
 }
+
+/**
+ * @section Workflow Guide
+ *
+ * **[AuthController 구현 세부 가이드]**
+ *
+ * 1. 비동기 무결성 유지:
+ *    - `pendingId_`, `pendingPassword_` 등 `pending` 멤버들은 비동기 서버 연결
+ * 시점(`onConnected`)까지 사용자 입력을 보관하여 컨텍스트 분실을 방지합니다.
+ *
+ * 2. 에러 핸들링 패턴:
+ *    - 모든 실패 시나리오(`handleLoginFailed`, `handleSignupFailed`)에서는
+ * `setError`를 호출하여 UI 에러 배너를 즉시 활성화합니다.
+ *    - 새 요청 시 `clearError`를 통해 이전 에러 상태를 명시적으로 초기화하는
+ * 것이 표준 절차입니다.
+ *
+ * 3. 세션 클린업:
+ *    - `logout()` 수행 시 모든 사용자 식별 프로퍼티를 비워(Clear), QML
+ * 레이어에서 바인딩된 민감 정보 노출을 차단해야 합니다.
+ */

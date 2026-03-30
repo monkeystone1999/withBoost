@@ -1,10 +1,4 @@
-﻿# @file Qt/Front/CMakeLists.txt
-# @brief QML 프론트엔드 모듈 (FrontEnd) 구성 파일
-#
-# 이 파일은 프로젝트의 모든 QML 파일, 이미지 에셋(SVG), 폰트 및 테마 설정을 관리합니다.
-# `AnoMap.Front`라는 URI를 통해 백엔드에서 등록된 C++ 객체들과 연결되어 사용자 인터페이스를 형성합니다.
-
-cmake_minimum_required(VERSION 3.16)
+﻿cmake_minimum_required(VERSION 3.16)
 
 # @brief FrontEnd 라이브러리 및 QML 싱글톤 설정
 # 
@@ -62,7 +56,6 @@ qt_add_qml_module(FrontEnd
         Page/DevicePage.qml
         Page/MyPage.qml
         Page/LoginPage.qml
-        Page/SettingsPage.qml
         Page/SignupPage.qml
         Page/AdminPage.qml
 

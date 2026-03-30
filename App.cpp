@@ -1,16 +1,16 @@
-// ============================================================
-//  App.cpp ??Qt engine configuration only
-//
-//  RULE: This file must not construct any business objects,
-//        parse any data, or wire any signals.
-//        All of that belongs in Core::init().
-//
-//  This file is responsible for:
-//    1. Qt / rendering API selection
-//    2. QQmlApplicationEngine setup (URL interceptor, QWK, import paths)
-//    3. Instantiating Core and delegating init / shutdown
-//    4. Loading the QML root module
-// ============================================================
+/**
+ * @file App.cpp
+ * @brief 애플리케이션 진입점 및 Qt 엔진 기본 구성
+ *
+ * 이 파일은 Qt 런타임 환경 설정, 그래픽 API 선택, QML 엔진 초기화를 담당합니다.
+ * 비즈니스 로직은 포함하지 않으며, 모든 오케스트레이션은 Core::init()에
+ * 위임합니다.
+ *
+ * **주요 역할:**
+ * 1. 렌더링 API (Direct3D11) 및 윈도우 프레임워크(QWindowKit) 설정.
+ * 2. QML 플러그인 로드 및 VideoStream 등 필수 타입 등록.
+ * 3. Core 인스턴스를 통한 기술 레이어 기동.
+ */
 
 #include "Core.hpp"
 #include "Qt/Back/Services/VideoStream.hpp"
@@ -22,7 +22,6 @@
 #include <QtQml/qqmlextensionplugin.h>
 
 Q_IMPORT_QML_PLUGIN(AnoMap_FrontPlugin)
-
 
 int main(int argc, char **argv) {
   QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);

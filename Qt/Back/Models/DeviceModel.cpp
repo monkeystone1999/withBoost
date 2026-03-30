@@ -57,100 +57,69 @@ QHash<int, QByteArray> DeviceModel::roleNames() const {
           {HasHeaterRole, "hasHeater"}};
 }
 
-// ── refreshFromCameraManager ───────────────────────────────────────────────────────────
+// ── refreshFromCameraManager
+// ───────────────────────────────────────────────────────────
 void DeviceModel::refreshFromCameraManager() {
-  if (!cameraManager_) return;
+  if (!cameraManager_)
+    return;
   beginResetModel();
   devices_.clear();
   byIp_.clear();
-  
-  for (auto& [id, info] : cameraManager_->getCameras()) {
-      QString ip = QString::fromStdString(info.ip_);
-      QString cid = QString::fromStdString(
-          info.ip_ + "/" + std::to_string(info.index_));
-      
-      DeviceEntry entry;
-      entry.ip = ip;
-      entry.cameraId = cid;
-      entry.isOnline = true;
-      entry.temp = info.MetaData_.tmp_.empty() ? 0.0 : info.MetaData_.tmp_.back();
-      // hum/light/tilt map to device sensors
-      entry.hasMotor = true;
-      entry.hasIr = info.Status_.ir_on;
-      entry.hasHeater = info.Status_.heater_on;
-      
-      devices_.append(entry);
-      byIp_[ip] = devices_.size() - 1;
+
+  for (auto &[id, info] : cameraManager_->getCameras()) {
+    QString ip = QString::fromStdString(info.ip_);
+    QString cid =
+        QString::fromStdString(info.ip_ + "/" + std::to_string(info.index_));
+
+    DeviceEntry entry;
+    entry.ip = ip;
+    entry.cameraId = cid;
+    entry.isOnline = true;
+    entry.temp = info.MetaData_.tmp_.empty() ? 0.0 : info.MetaData_.tmp_.back();
+    // hum/light/tilt map to device sensors
+    entry.hasMotor = true;
+    entry.hasIr = info.Status_.ir_on;
+    entry.hasHeater = info.Status_.heater_on;
+
+    devices_.append(entry);
+    byIp_[ip] = devices_.size() - 1;
   }
   endResetModel();
 }
 
 // ── QML 조회 함수 ────────────────────────────────────────────────────────────
-int DeviceModel::findIndexByIp(const QString &ip) const {
-  auto it = byIp_.find(ip);
-  return it != byIp_.end() ? *it : -1;
-}
-
-bool DeviceModel::hasDevice(const QString &ip) const {
-  return findIndexByIp(ip) >= 0;
-}
-
 QString DeviceModel::cameraId(const QString &ip) const {
-  int idx = findIndexByIp(ip);
+  auto it = byIp_.find(ip);
+  int idx = it != byIp_.end() ? *it : -1;
   return idx >= 0 ? devices_[idx].cameraId : "";
 }
 
-double DeviceModel::cpu(const QString &ip) const {
-  int idx = findIndexByIp(ip);
-  return idx >= 0 ? devices_[idx].cpu : 0.0;
-}
+// getHistory removed as history tracking is now fully handled by getMetaHistory
 
-double DeviceModel::memory(const QString &ip) const {
-  int idx = findIndexByIp(ip);
-  return idx >= 0 ? devices_[idx].memory : 0.0;
-}
-
-double DeviceModel::temp(const QString &ip) const {
-  int idx = findIndexByIp(ip);
-  return idx >= 0 ? devices_[idx].temp : 0.0;
-}
-
-// ✅ History 조회 (QML용 QVariantList 반환)
-QVariantList DeviceModel::getHistory(const QString &ip) const {
-  int idx = findIndexByIp(ip);
-  if (idx < 0)
+QVariantList DeviceModel::getMetaHistory(const QString &cameraId,
+                                         const QString &field) const {
+  if (!cameraManager_)
+    return {};
+  auto *cam = cameraManager_->Get(cameraId.toStdString());
+  if (!cam)
     return {};
 
-  QVariantList result;
-  for (const auto &h : devices_[idx].history) {
-    QVariantMap item;
-    item["timestamp"] = h.timestamp;
-    item["cpu"] = h.cpu;
-    item["memory"] = h.memory;
-    item["temp"] = h.temp;
-    item["uptime"] = h.uptime;
-    result.append(item);
-  }
+  const auto &toList = [](const std::deque<float> &d) {
+    QVariantList list;
+    for (float v : d)
+      list.append(static_cast<double>(v));
+    return list;
+  };
 
-  return result;
-}
-
-QVariantList DeviceModel::getMetaHistory(const QString& cameraId, const QString& field) const {
-    if (!cameraManager_) return {};
-    auto* cam = cameraManager_->Get(cameraId.toStdString());
-    if (!cam) return {};
-    
-    const auto& toList = [](const std::deque<float>& d) {
-        QVariantList list;
-        for (float v : d) list.append(static_cast<double>(v));
-        return list;
-    };
-    
-    if (field == "tmp")   return toList(cam->MetaData_.tmp_);
-    if (field == "tilt")  return toList(cam->MetaData_.tilt_);
-    if (field == "light") return toList(cam->MetaData_.light_);
-    if (field == "hum")   return toList(cam->MetaData_.hum_);
-    return {};
+  if (field == "tmp")
+    return toList(cam->MetaData_.tmp_);
+  if (field == "tilt")
+    return toList(cam->MetaData_.tilt_);
+  if (field == "light")
+    return toList(cam->MetaData_.light_);
+  if (field == "hum")
+    return toList(cam->MetaData_.hum_);
+  return {};
 }
 
 // --- cameraId-based lookup methods ---
@@ -169,21 +138,24 @@ QString DeviceModel::deviceIp(const QString &cameraId) const {
 }
 
 bool DeviceModel::hasMotor(const QString &cameraId) const {
-    if (!cameraManager_) return false;
-    auto* cam = cameraManager_->Get(cameraId.toStdString());
-    return cam ? cam->Status_.motor_auto : false;
+  if (!cameraManager_)
+    return false;
+  auto *cam = cameraManager_->Get(cameraId.toStdString());
+  return cam ? cam->Status_.motor_auto : false;
 }
 
 bool DeviceModel::hasIr(const QString &cameraId) const {
-    if (!cameraManager_) return false;
-    auto* cam = cameraManager_->Get(cameraId.toStdString());
-    return cam ? cam->Status_.ir_on : false;
+  if (!cameraManager_)
+    return false;
+  auto *cam = cameraManager_->Get(cameraId.toStdString());
+  return cam ? cam->Status_.ir_on : false;
 }
 
 bool DeviceModel::hasHeater(const QString &cameraId) const {
-    if (!cameraManager_) return false;
-    auto* cam = cameraManager_->Get(cameraId.toStdString());
-    return cam ? cam->Status_.heater_on : false;
+  if (!cameraManager_)
+    return false;
+  auto *cam = cameraManager_->Get(cameraId.toStdString());
+  return cam ? cam->Status_.heater_on : false;
 }
 
 bool DeviceModel::hasDeviceByCameraId(const QString &cameraId) const {
@@ -196,3 +168,24 @@ void DeviceModel::clearAll() {
   byIp_.clear();
   endResetModel();
 }
+
+/**
+ * @section Workflow Guide
+ *
+ * **[DeviceModel 데이터 수집 및 가공 가이드]**
+ *
+ * 1. 데이터 소스 바인딩 (Domain Linkage):
+ *    - 본 모델은 도메인 레이어의 `CameraManager`로부터 하드웨어 상태 정보를
+ * 수령합니다.
+ *    - `refreshFromCameraManager` 내부에서 `std::deque` 기반의 메타데이터를 Qt
+ * 친화적인 `QList` 및 `QVariantList`로 변환하여 QML 시각화 엔진에 최적화된
+ * 형태로 공급합니다.
+ *
+ * 2. 기기별 고유 기능 식별:
+ *    - `hasIr`, `hasHeater` 등은 카메라의 하드웨어 스펙 정보를 나타내며, 이는
+ * QML 대시보드의 상태 아이콘 활성화 여부를 결정하는 주요 논리값이 됩니다.
+ *
+ * 3. 효율적인 조회 체계:
+ *    - `byIp_` 해시 맵을 유지하여 대규모 장치 환경에서도 IP 주소 기반의 상태
+ * 조회를 O(1) 수준으로 유지하도록 설계되었습니다.
+ */

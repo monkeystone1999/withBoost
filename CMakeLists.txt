@@ -1,15 +1,4 @@
-﻿# @file CMakeLists.txt
-# @brief AnoMap 프로젝트의 루트 빌드 구성 파일
-#
-# 이 파일은 프로젝트의 전역 설정, 의존성 관리(Qt, FFmpeg, QWindowKit), 
-# 그리고 하위 디렉토리(Qt/Front, Qt/Back, Src)의 빌드 순서를 제어합니다.
-# 
-# **표준 빌드 방법론:**
-# 1. 외부 의존성(Qt 6.8+, FFmpeg) 설치 확인
-# 2. `cmake -B build` 명령으로 빌드 시스템 생성
-# 3. `cmake --build build` 명령으로 전체 프로젝트 컴파일
-
-cmake_minimum_required(VERSION 3.16)
+﻿cmake_minimum_required(VERSION 3.16)
 
 project(AnoMap VERSION 0.8 LANGUAGES CXX)
 

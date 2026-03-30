@@ -36,7 +36,7 @@ Window {
             case "Back":
                 if (stackView.depth > 1)
                     stackView.pop();
-                else{
+                else {
                     stackView.replace(null, "Page/LoginPage.qml");
                 }
                 break;
@@ -97,6 +97,15 @@ Window {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         initialItem: "Page/LoginPage.qml"
+
+        onCurrentItemChanged: {
+            if (currentItem != null && typeof appController !== "undefined") {
+                // LoginPage나 SignupPage에서 보내는 requestPage 시그널을 appController.navigate에 연결
+                if (typeof currentItem.requestPage !== "undefined") {
+                    currentItem.requestPage.connect(appController.navigate);
+                }
+            }
+        }
 
         pushEnter: Transition {
             ParallelAnimation {

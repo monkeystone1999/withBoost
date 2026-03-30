@@ -92,7 +92,26 @@ void AppController::detachCameraWindow(int slotId, const QString &title,
       win->setY(globalY);
       win->show();
     }
-  } else {
     qWarning() << "[AppController] failed to create CameraWindow object.";
   }
 }
+
+/**
+ * @section Workflow Guide
+ *
+ * **[AppController 구현 상세 및 팁]**
+ *
+ * 1. QPointer의 활용:
+ *    - `cameraWindows_`는 `QPointer<QObject>`를 담고 있어, QML 윈도우가
+ * 사용자에 의해 수동으로 닫히거나 파괴되어도 댕글링 포인터 발생을 완벽하게
+ * 차단합니다.
+ *
+ * 2. 동적 속성 주입:
+ *    - `detachCameraWindow` 내부에서는
+ * `QQmlComponent::createWithInitialProperties`를 사용하여 윈도우가 생성되는
+ * 즉시 필요한 데이터(ID, RTSP 상태 등)를 안전하게 주입합니다.
+ *
+ * 3. 엔진 생명주기:
+ *    - `engine_` 포인터는 `main.cpp`에서 주입되어야 합니다. 엔진이 유효하지
+ * 않을 경우 경고를 출력하고 생성을 중단하여 앱 크래시를 방지합니다.
+ */

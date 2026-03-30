@@ -1,10 +1,7 @@
-# Refactoring Tasks
 
-1. **Improve Core and App**: Since the contents of the `Src` folder have changed significantly, improve `Core.cpp`, `Core.hpp`, and `App.cpp`.
-2. **Refactor Device/Camera Dependencies**: Refactor device and camera information, previously managed in `Qt/Back`, to receive dependencies from the `Src` layer via pointers. Preserve functional details as specified below.
-3. **Dashboard CameraCard Logic**: Maintain existing `CameraCard` functionalities in `Qt/Front/pages/DashboardPage.qml`. Since core logic resides in `Src`, define UI-centric data (Split, Merge, Swap, newWindow) in `Qt/Back` under new names. Avoid internal use of `CameraID` unless absolutely necessary.
-4. **AI Page Image Mapping**: The `id: latestAiImage` component in `Qt/Front/pages/AiPage.qml` must utilize the `CameraImage` struct from `Src/Domain/CameraManager.hpp`. Adjust dependencies to allow referencing `CameraInfo`.
-5. **Device Page LiveGraph Values**: `LiveGraph` values in `Qt/Front/pages/DevicePage.qml` must reflect `CameraMeta` or `CameraStatus` from `Src/Domain/CameraManager.hpp`. Update dependencies accordingly.
-6. **Decouple VideoStream**: In `Qt/Back/Services/VideoStream.hpp`, remove direct includes of `Video` from the `Src` folder. Isolate them and use dependency injection to access the stream via `std::unique_ptr<VideoEngine>` within `CameraInfo` from `Src/Domain/CameraManager.hpp`.
-7. **Qt/Front Folder Naming**: Ensure all folder names within `Qt/Front` start with an uppercase letter. Convert all plural folder names to singular (remove 's' or 'es' suffixes).
-8. **Cleanup and Linking Audit**: Delete all obsolete files and perform a comprehensive audit of all `CMakeLists.txt` files to verify linking.
+5. **Just-In-Time (JIT) Connection Lifecycle**: Establishing a server connection must be triggered by specific UI events (e.g., clicking the Login button) rather than occurring automatically at startup. The `io_context` session should be terminated upon login failure and re-established only upon a successful subsequent login attempt. Adjust object lifetimes and dependencies to ensure the connection lifecycle is strictly event-driven.
+6. **Domain-Driven Polling Architecture**: The primary data state must be stored first within the `Domain` structures in the `Src` directory. Data updates should be performed via polling within `Core.cpp`. This architectural constraint is mandatory and must be strictly followed.
+7. **Refactoring of Layout Features**: When refactoring 'Split', 'Merge', and 'NewWindow' functionalities, ensure the current behavior is preserved while safely transitioning to data sourced from the `Src` directory.
+8. **Network Integrity Audit**: Conduct a comprehensive audit of `Src/Network/NetworkManager.cpp` and `Src/Network/NetworkEngine.cpp`. Verify the logic for image reception and ensure no lifecycle-related errors exist by cross-referencing the two components.
+9. **UI-Backend Alignment**: Ensure that all QML components in `Qt/Front` are functionally aligned with the `Qt/Back` controllers. Existing front-end behavior must remain unchanged during refactoring. The goal of refactoring is to achieve consistency in function, variable, and class naming conventions.
+10. opensive file delete/modify at Qt folder's file

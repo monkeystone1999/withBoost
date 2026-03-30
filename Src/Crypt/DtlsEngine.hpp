@@ -10,27 +10,62 @@
  * @file DtlsEngine.hpp
  * @brief DTLS 및 MediaDTLS 공용 엔진
  *
- * 표준 DTLS 세션과 미디어 전용 부분 암호화(MediaDTLS) 세션을 관리합니다.
+ * 이 파일은 UDP 통신 레이어와 직접 결합되어 데이터의 기밀성과 무결성을
+ * 보장합니다. 핵심 디자인 패턴으로 OpenSSL의 Memory BIO를 사용하여 네트워크
+ * I/O와 가상화된 메모리 버퍼를 분리, 비동기 이벤트 루프 또는 외부 소켓
+ * 라이브러리와의 통합이 용이하도록 설계되었습니다.
  */
 
 namespace DTLS {
 
-/// 쿠키 초기화 (앱 시작 시 1회 호출 필수)
+/**
+ * @brief 쿠키 초기화 (앱 시작 시 1회 호출 필수)
+ * @note 서버 모드에서 클라이언트의 주소 변조를 방지하기 위한 Stateless Cookie
+ * 생성용 시드(Seed)를 난수로 초기화합니다.
+ */
 void InitCookie();
 
-/// 서버용 컨텍스트 생성
+/**
+ * @brief 서버용 컨텍스트 생성
+ * @param certfile PEM 형식의 서버 인증서 파일 경로
+ * @param keyfile PEM 형식의 서버 개인키 파일 경로
+ * @param cafile (선택) 클라이언트 인증서 검증을 위한 CA 파일 경로
+ * @return SSL_CTX* 설정이 완료된 서버 컨텍스트 포인터
+ */
 SSL_CTX *ServerContext(const char *certfile = nullptr,
                        const char *keyfile = nullptr,
                        const char *cafile = nullptr);
 
-/// 클라이언트용 컨텍스트 생성
+/**
+ * @brief 클라이언트용 컨텍스트 생성
+ * @param certfile (선택) 클라이언트 인증서 파일 경로
+ * @param keyfile (선택) 클라이언트 개인키 파일 경로
+ * @param cafile (선택) 서버 인증서 검증을 위한 CA 파일 경로
+ * @return SSL_CTX* 설정이 완료된 클라이언트 컨텍스트 포인터
+ */
 SSL_CTX *ClientContext(const char *certfile = nullptr,
                        const char *keyfile = nullptr,
                        const char *cafile = nullptr);
 
-/// DTLS 세션 관리 클래스
+/**
+ * @class Session
+ * @brief 표준 DTLS 세션 관리 클래스
+ *
+ * **Standard Usage Methodology:**
+ * 1. DTLS::ServerContext() 또는 DTLS::ClientContext()를 통해 생성된 SSL_CTX를
+ * 사용하여 인스턴스를 생성합니다.
+ * 2. 네트워크로부터 수신된 패킷이 있다면 decrypt() 또는 Handshake()의 인자로
+ * 전달하고, 반환되는 데이터를 네트워크로 전송합니다.
+ * 3. isHandshakeDone()이 true가 되면 encrypt()/decrypt()를 통해 안전한 데이터
+ * 통신을 수행합니다.
+ */
 class Session {
 public:
+  /**
+   * @param ctx SSL 컨텍스트
+   * @param isServer 서버 모드 여부
+   * @param peerIdent (선택) 상대방 식별 정보
+   */
   Session(SSL_CTX *ctx, bool isServer = true,
           std::vector<uint8_t> peerIdent = {});
   ~Session();
@@ -40,13 +75,52 @@ public:
   Session(Session &&other) noexcept;
   Session &operator=(Session &&other) noexcept;
 
+  /**
+   * @return bool SSL 객체 생성 성공 여부
+   */
   bool isValid() const { return ssl != nullptr; }
+
+  /**
+   * @return bool 핸드셰이크 절차 완료 여부
+   */
   bool isHandshakeDone() const;
+
+  /**
+   * @param peerIdent 상대방 식별을 위한 원시 데이터 (IP/Port 등)
+   * @note 내부적으로 쿠키 검증 또는 세션 식별에 사용될 수 있습니다.
+   */
   void setPeer(std::vector<uint8_t> peerIdent);
 
+  /**
+   * @brief 핸드셰이크 진행 (수신 데이터 없는 경우)
+   * @return std::vector<uint8_t> 네트워크로 즉시 전송해야 할 핸드셰이크 패킷
+   * @note 타이머 만료에 따른 재전송 패킷 등이 생성될 수 있으므로 정기적으로
+   * 확인이 필요합니다.
+   */
   std::vector<uint8_t> Handshake();
+
+  /**
+   * @param buffer 수신된 원시 패킷 데이터
+   * @param size 데이터 크기
+   * @return std::vector<uint8_t> 복호화된 평문 데이터 또는 핸드셰이크 응답 패킷
+   * @note 반환된 데이터가 암호화된 핸드셰이크 패킷인지 여부는 내부 상태와
+   * getHandshakeData() 호출로 판별합니다.
+   */
   std::vector<uint8_t> decrypt(const char *buffer, size_t size);
+
+  /**
+   * @param buffer 전송할 평문 데이터
+   * @param size 데이터 크기
+   * @return std::vector<uint8_t> DTLS 레코드로 캡슐화된 암호화 패킷
+   * @note 핸드셰이크가 완료되지 않은 상태에서 호출 시 빈 결과를 반환합니다.
+   */
   std::vector<uint8_t> encrypt(const char *buffer, size_t size);
+
+  /**
+   * @return std::vector<uint8_t> 보류 중인 핸드셰이크 데이터
+   * @note 내부 writeBio에 쌓인 데이터를 추출하여 네트워크 레이어로 전달하기
+   * 위해 사용합니다.
+   */
   std::vector<uint8_t> getHandshakeData();
 
 private:
@@ -64,273 +138,129 @@ private:
 
 namespace MediaDTLS {
 
-// ─────────────────────────────────────────────
-// 오버헤드 상수 (모두 명시적으로 분리)
-// ─────────────────────────────────────────────
-constexpr size_t OVERHEAD_IP = 20; // IPv4
-constexpr size_t OVERHEAD_UDP = 8;
-constexpr size_t OVERHEAD_DTLS_HEADER = 13; // DTLS 1.2 레코드 헤더
-constexpr size_t OVERHEAD_GCM_TAG = 16;     // AES-GCM auth tag
+/**
+ * @brief 서버용 컨텍스트 생성 (미디어 전용)
+ * @param certfile 서버 인증서 경로
+ * @param keyfile 서버 개인키 경로
+ * @param cafile 클라이언트 검증용 CA 경로
+ * @return SSL_CTX* 미디어 데이터 최적화 설정이 적용된 컨텍스트
+ */
+SSL_CTX *ServerContext(const char *certfile = nullptr,
+                       const char *keyfile = nullptr,
+                       const char *cafile = nullptr);
 
-// 실제 링크 MTU (1200 byte UDP 환경)
-constexpr size_t LINK_MTU = 1200;
+/**
+ * @brief 클라이언트용 컨텍스트 생성 (미디어 전용)
+ * @param certfile 클라이언트 인증서 경로
+ * @param keyfile 클라이언트 개인키 경로
+ * @param cafile 서버 검증용 CA 경로
+ * @return SSL_CTX* 미디어 데이터 최적화 설정이 적용된 컨텍스트
+ */
+SSL_CTX *ClientContext(const char *certfile = nullptr,
+                       const char *keyfile = nullptr,
+                       const char *cafile = nullptr);
 
-// ─────────────────────────────────────────────
-// 패킷 헤더 구조체
-// ─────────────────────────────────────────────
-enum class MessageType : uint32_t {
-  Image = 1,
-  Audio = 2,
-  Control = 3,
-};
-
-#pragma pack(push, 1)
-struct PacketHeader {
-  MessageType type; // 4 B
-  uint32_t length;  // 4 B  — 뒤따르는 DTLS 암호문의 바이트 수
-};
-
-// uint8_t  → 최대 255 청크  ≈  288 KB  (MB 단위 이미지에서 오버플로우)
-// uint16_t → 최대 65535 청크 ≈  72 MB  (충분)
-struct ImageHeader : PacketHeader {
-  uint16_t FrameNumber;       // 프레임 번호 (연속 스트리밍 대비 uint16_t)
-  uint16_t SequenceNumber;    // 현재 청크 번호 (0-based)
-  uint16_t MaxSequenceNumber; // 전체 청크 수 - 1
-};
-// sizeof(ImageHeader) = 4 + 4 + 2 + 2 + 2 = 14 B
-#pragma pack(pop)
-
-// ImageHeader 크기를 포함한 실제 최대 DTLS plaintext 크기
-//   1200 - 20(IP) - 8(UDP) - 14(ImageHeader) - 13(DTLS hdr) - 16(GCM tag) =
-//   1129 B
-constexpr size_t MAX_DTLS_PAYLOAD = LINK_MTU - OVERHEAD_IP - OVERHEAD_UDP -
-                                    sizeof(ImageHeader) - OVERHEAD_DTLS_HEADER -
-                                    OVERHEAD_GCM_TAG;
-// = 1129 B
-
-// ─────────────────────────────────────────────
-// 컨텍스트 생성
-// ─────────────────────────────────────────────
-inline SSL_CTX *ClientContext(const char *certfile = nullptr,
-                              const char *keyfile = nullptr,
-                              const char *cafile = nullptr) {
-  SSL_CTX *ctx = SSL_CTX_new(DTLS_client_method());
-  if (!ctx)
-    return nullptr;
-
-  SSL_CTX_set_ciphersuites(ctx, "TLS_AES_256_GCM_SHA384:"
-                                "TLS_CHACHA20_POLY1305_SHA256:"
-                                "TLS_AES_128_GCM_SHA256");
-
-  SSL_CTX_set_cipher_list(
-      ctx, "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:"
-           "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:"
-           "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256");
-
-  if (certfile)
-    SSL_CTX_use_certificate_file(ctx, certfile, SSL_FILETYPE_PEM);
-  if (keyfile)
-    SSL_CTX_use_PrivateKey_file(ctx, keyfile, SSL_FILETYPE_PEM);
-
-  if (cafile) {
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
-    SSL_CTX_load_verify_locations(ctx, cafile, nullptr);
-  } else {
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
-  }
-  return ctx;
-}
-
-inline SSL_CTX *ServerContext(const char *certfile, const char *keyfile,
-                              const char *cafile = nullptr) {
-  SSL_CTX *ctx = SSL_CTX_new(DTLS_server_method());
-  if (!ctx)
-    return nullptr;
-
-  SSL_CTX_set_ciphersuites(ctx, "TLS_AES_256_GCM_SHA384:"
-                                "TLS_CHACHA20_POLY1305_SHA256:"
-                                "TLS_AES_128_GCM_SHA256");
-
-  SSL_CTX_set_cipher_list(
-      ctx, "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:"
-           "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:"
-           "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256");
-
-  if (certfile &&
-      SSL_CTX_use_certificate_file(ctx, certfile, SSL_FILETYPE_PEM) != 1)
-    std::cerr << "MediaDTLS: 인증서 로드 실패\n";
-  if (keyfile &&
-      SSL_CTX_use_PrivateKey_file(ctx, keyfile, SSL_FILETYPE_PEM) != 1)
-    std::cerr << "MediaDTLS: 개인키 로드 실패\n";
-
-  if (cafile) {
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
-                       nullptr);
-    SSL_CTX_load_verify_locations(ctx, cafile, nullptr);
-  } else {
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
-  }
-  return ctx;
-}
-
-// ─────────────────────────────────────────────
-// DTLS 세션
-// ─────────────────────────────────────────────
+/**
+ * @class Session
+ * @brief 미디어 스트리밍 최적화 DTLS 세션 클래스
+ *
+ * **Standard Usage Methodology:**
+ * 1. MediaDTLS 컨텍스트를 사용하여 세션을 초기화합니다.
+ * 2. Handshake(incoming) 함수를 통해 초기 보안 연결을 수립합니다.
+ * 3. encrypt()/decrypt()를 사용하여 실시간 미디어 청크를 보호 전송합니다.
+ */
 class Session {
+public:
+  /**
+   * @param ctx SSL 컨텍스트
+   * @param isServer 서버 모드 여부
+   * @note 내부적으로 1200바이트의 MTU 힌트를 설정하여 UDP 단편화를 방지합니다.
+   */
+  Session(SSL_CTX *ctx, bool isServer = true);
+  ~Session();
+
+  Session(const Session &) = delete;
+  Session &operator=(const Session &) = delete;
+  Session(Session &&other) noexcept;
+  Session &operator=(Session &&other) noexcept;
+
+  /**
+   * @return bool SSL 객체 유효성 여부
+   */
+  bool isValid() const { return ssl != nullptr; }
+
+  /**
+   * @return bool 핸드셰이크 완료 여부
+   */
+  bool isHandshakeDone() const;
+
+  /**
+   * @brief 핸드셰이크 절차 진행
+   * @param incoming 상대방으로부터 수신된 DTLS 패킷
+   * @return std::vector<uint8_t> 네트워크로 전송해야 할 응답 패킷
+   * @note 핸드셰이크 단계에서는 수신 데이터가 없더라도 수시로 호출하여 재전송을
+   * 처리해야 합니다.
+   */
+  std::vector<uint8_t> Handshake(const std::vector<uint8_t> &incoming = {});
+
+  /**
+   * @return std::string 합의된 암호 알고리즘 명칭 (예: "AES128-GCM-SHA256")
+   */
+  std::string getNegotiatedCipher() const;
+
+  /**
+   * @param buffer 암호화할 미디어 평문 데이터
+   * @param len 데이터 길이
+   * @return std::vector<uint8_t> DTLS 암호화된 UDP 페이로드
+   * @note MTU 크기에 맞게 미리 분할된 데이터를 입력하는 것을 권장합니다.
+   */
+  std::vector<uint8_t> encrypt(const char *buffer, int len);
+
+  /**
+   * @param buffer 수신된 DTLS 암호문 패킷
+   * @param len 패킷 길이
+   * @return std::vector<uint8_t> 복호화된 미디어 평문
+   * @note 핸드셰이크 패킷이 입력된 경우 평문 결과는 비어 있으며, 내부 상태만
+   * 전이됩니다.
+   */
+  std::vector<uint8_t> decrypt(const char *buffer, int len);
+
 private:
+  void cleanup();
+  std::vector<uint8_t> flushWriteBio();
+
   SSL *ssl = nullptr;
   BIO *readBio = nullptr;
   BIO *writeBio = nullptr;
 
-  void cleanup() {
-    if (ssl) {
-      SSL_free(ssl); // SSL_free가 BIO도 함께 해제
-      ssl = nullptr;
-      readBio = writeBio = nullptr;
-    }
-  }
-
-  // writeBio에 쌓인 암호화 패킷 1회 추출
-  std::vector<uint8_t> flushWriteBio() {
-    std::vector<uint8_t> out;
-    int pending = BIO_pending(writeBio);
-    if (pending > 0) {
-      out.resize(pending);
-      int n = BIO_read(writeBio, out.data(), pending);
-      if (n > 0)
-        out.resize(n);
-      else
-        out.clear();
-    }
-    return out;
-  }
-
-public:
-  Session(SSL_CTX *ctx, bool isServer) {
-    ssl = SSL_new(ctx);
-    if (!ssl)
-      return;
-
-    if (isServer)
-      SSL_set_accept_state(ssl);
-    else
-      SSL_set_connect_state(ssl);
-
-    // 실제 링크 MTU를 그대로 전달 → OpenSSL이 DTLS 레코드 크기를 맞춤
-    DTLS_set_link_mtu(ssl, static_cast<long>(LINK_MTU));
-
-    readBio = BIO_new(BIO_s_mem());
-    writeBio = BIO_new(BIO_s_mem());
-    BIO_set_mem_eof_return(readBio, -1);
-    BIO_set_mem_eof_return(writeBio, -1);
-    SSL_set_bio(ssl, readBio, writeBio);
-  }
-
-  ~Session() { cleanup(); }
-
-  Session(Session &&o) noexcept
-      : ssl(o.ssl), readBio(o.readBio), writeBio(o.writeBio) {
-    o.ssl = nullptr;
-    o.readBio = o.writeBio = nullptr;
-  }
-
-  Session &operator=(Session &&o) noexcept {
-    if (this != &o) {
-      cleanup();
-      ssl = o.ssl;
-      readBio = o.readBio;
-      writeBio = o.writeBio;
-      o.ssl = nullptr;
-      o.readBio = o.writeBio = nullptr;
-    }
-    return *this;
-  }
-
-  bool isHandshakeDone() const { return ssl && SSL_is_init_finished(ssl); }
-
-  std::string getNegotiatedCipher() const {
-    if (!isHandshakeDone())
-      return "Not Negotiated Yet";
-    const SSL_CIPHER *c = SSL_get_current_cipher(ssl);
-    return c ? SSL_CIPHER_get_name(c) : "Unknown";
-  }
-
-  std::vector<uint8_t> Handshake(const std::vector<uint8_t> &incoming = {}) {
-    if (!ssl)
-      return {};
-    if (!incoming.empty())
-      BIO_write(readBio, incoming.data(), static_cast<int>(incoming.size()));
-    if (!SSL_is_init_finished(ssl))
-      SSL_do_handshake(ssl);
-    return flushWriteBio();
-  }
-
-  // ──────────────────────────────────────────
-  // EncryptChunks
-  //   반환: 각 원소가 UDP 1개에 실을 DTLS 암호문
-  //   호출 측에서 원소마다 ImageHeader를 prepend해서 sendto()
-  //
-  //   5 MB 이미지 기준:
-  //     5,242,880 / 1129 ≈ 4644 청크 → uint16_t(65535) 내 수용
-  // ──────────────────────────────────────────
-  std::vector<std::vector<uint8_t>> EncryptChunks(const uint8_t *data,
-                                                  size_t size) {
-    std::vector<std::vector<uint8_t>> result;
-    if (!ssl || !SSL_is_init_finished(ssl) || !data || size == 0)
-      return result;
-
-    // 청크 수 사전 계산 → result 메모리 예약
-    size_t chunkCount = (size + MAX_DTLS_PAYLOAD - 1) / MAX_DTLS_PAYLOAD;
-    result.reserve(chunkCount);
-
-    size_t offset = 0;
-    while (offset < size) {
-      size_t chunkSize = std::min(size - offset, MAX_DTLS_PAYLOAD);
-      int written = SSL_write(ssl, data + offset, static_cast<int>(chunkSize));
-      if (written <= 0) {
-        std::cerr << "MediaDTLS: SSL_write 실패 (offset=" << offset << ")\n";
-        break;
-      }
-      offset += static_cast<size_t>(written);
-
-      // SSL_write 직후 즉시 flush → DTLS 레코드 1개씩 격리
-      auto record = flushWriteBio();
-      if (!record.empty())
-        result.push_back(std::move(record));
-    }
-    return result;
-  }
-
-  // ──────────────────────────────────────────
-  // Decrypt
-  //   수신 측은 UDP 패킷에서 ImageHeader를 미리 제거한 뒤
-  //   DTLS 암호문(packet)만 이 함수에 전달한다고 가정
-  // ──────────────────────────────────────────
-  std::vector<uint8_t> Decrypt(const uint8_t *packet, size_t size) {
-    std::vector<uint8_t> plainText;
-    if (!ssl || !packet || size == 0)
-      return plainText;
-
-    BIO_write(readBio, packet, static_cast<int>(size));
-
-    if (!SSL_is_init_finished(ssl)) {
-      SSL_do_handshake(ssl);
-      if (!SSL_is_init_finished(ssl))
-        return plainText;
-    }
-
-    uint8_t buf[4096];
-    while (true) {
-      int n = SSL_read(ssl, buf, sizeof(buf));
-      if (n > 0) {
-        plainText.insert(plainText.end(), buf, buf + n);
-      } else {
-        // SSL_ERROR_WANT_READ 등 — 더 읽을 데이터 없음
-        break;
-      }
-    }
-    return plainText;
-  }
+  static constexpr int BufferSize = 4096;
 };
-
 } // namespace MediaDTLS
+
+/**
+ * @section Workflow Guide
+ *
+ * **[통합 워크플로우 예시: UDP 송수신 루프]**
+ *
+ * 1. 초기화:
+ *    - DTLS::InitCookie() 호출
+ *    - SSL_CTX 생성 (ServerContext/ClientContext)
+ *    - DTLS::Session 또는 MediaDTLS::Session 인스턴스 생성
+ *
+ * 2. 핸드셰이크 루프:
+ *    - 클라이언트: 세션 생성 후 즉시 session.Handshake() 호출 -> 반환된
+ * 데이터를 sendto()로 전송
+ *    - 서버/클라이언트 공통: recvfrom()으로 받은 데이터를 session.decrypt()
+ * 또는 session.Handshake(data)에 입력
+ *    - session.isHandshakeDone()이 true가 될 때까지 반복
+ *
+ * 3. 데이터 송수신:
+ *    - 송신: session.encrypt(plain, len) -> 반환된 encrypted 데이터를
+ * sendto()로 전송
+ *    - 수신: recvfrom() -> session.decrypt(encrypted, len) -> 반환된 plain
+ * 데이터 처리
+ *
+ * **주의사항:**
+ * - 비차단(Non-blocking) 소켓 사용 시, session.Handshake()를 주기적으로
+ * 호출하여 패킷 손실에 따른 DTLS 재전송 메커니즘이 작동하도록 해야 합니다.
+ */

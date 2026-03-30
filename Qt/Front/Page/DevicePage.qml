@@ -102,16 +102,16 @@ Item {
                 RowLayout {
                     spacing: 12
                     DeviceBadge {
-                        label: "PTZ Auto"
-                        active: typeof deviceModel !== "undefined" && deviceModel.hasMotor(rootItem.selectedCameraId)
+                        labelText: "PTZ Auto"
+                        isActive: typeof deviceModel !== "undefined" && deviceModel.hasMotor(rootItem.selectedCameraId)
                     }
                     DeviceBadge {
-                        label: "IR On"
-                        active: typeof deviceModel !== "undefined" && deviceModel.hasIr(rootItem.selectedCameraId)
+                        labelText: "IR On"
+                        isActive: typeof deviceModel !== "undefined" && deviceModel.hasIr(rootItem.selectedCameraId)
                     }
                     DeviceBadge {
-                        label: "Heater On"
-                        active: typeof deviceModel !== "undefined" && deviceModel.hasHeater(rootItem.selectedCameraId)
+                        labelText: "Heater On"
+                        isActive: typeof deviceModel !== "undefined" && deviceModel.hasHeater(rootItem.selectedCameraId)
                     }
                 }
 
