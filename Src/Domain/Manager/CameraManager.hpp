@@ -1,5 +1,5 @@
 #pragma once
-#include "../Network/NetworkProtocol.hpp"
+#include "../../Network/NetworkProtocol.hpp"
 #include <deque>
 #include <map>
 #include <memory>
@@ -17,7 +17,7 @@
  * 그리고 조각화된 네트워크 이미지 패킷의 재조립 및 관리 로직을 정의합니다.
  */
 
-#include "../Network/VideoEngine.hpp"
+#include "../../Network/Engine/VideoEngine.hpp"
 
 /**
  * @struct CameraMeta

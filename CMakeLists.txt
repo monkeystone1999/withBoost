@@ -31,9 +31,9 @@ qt_add_executable(AnoMap
 )
 
 # @note 각 레이어별 하위 디렉토리 추가 (빌드 순서에 주의)
-add_subdirectory(Qt/Front)
-add_subdirectory(Qt/Back)
 add_subdirectory(Src)
+add_subdirectory(Qt/Back)
+add_subdirectory(Qt/Front)
 
 set_target_properties(AnoMap PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
@@ -54,7 +54,6 @@ target_link_libraries(AnoMap PRIVATE
     BackEnd
     AnoMapSTD
     FrontEnd
-    FrontEndplugin
     FFmpeg::avcodec
     FFmpeg::avformat
     FFmpeg::avutil

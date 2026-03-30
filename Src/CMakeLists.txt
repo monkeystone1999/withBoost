@@ -9,26 +9,26 @@ find_package(yaml-cpp CONFIG REQUIRED)
 add_library(AnoMapSTD STATIC
     ## Network
     Network/NetworkProtocol.hpp
-    Network/NetworkManager.hpp
-    Network/NetworkManager.cpp
-    Network/NetworkEngine.hpp
-    Network/NetworkEngine.cpp
-    Network/VideoEngine.hpp
-    Network/VideoEngine.cpp
+    Network/Manager/NetworkManager.hpp
+    Network/Manager/NetworkManager.cpp
+    Network/Engine/NetworkEngine.hpp
+    Network/Engine/NetworkEngine.cpp
+    Network/Engine/VideoEngine.hpp
+    Network/Engine/VideoEngine.cpp
 
     ## Domain
-    Domain/CameraManager.hpp
-    Domain/CameraManager.cpp
+    Domain/Manager/CameraManager.hpp
+    Domain/Manager/CameraManager.cpp
+    Domain/Manager/AlarmManager.hpp
+    Domain/Manager/AlarmManager.cpp
+    Domain/Manager/StatusManager.hpp
+    Domain/Manager/StatusManager.cpp
+    Domain/Manager/AuthManager.hpp
     Domain/CameraBridge.hpp
     Domain/CameraBridge.cpp
-    Domain/AlarmManager.hpp
-    Domain/AlarmManager.cpp
     Domain/AlarmBridge.hpp
-    Domain/StatusManager.hpp
-    Domain/StatusManager.cpp
     Domain/AuthBridge.hpp
     Domain/AuthBridge.cpp
-    Domain/AuthManager.hpp
 
     ## Crypt
     Crypt/DtlsEngine.hpp

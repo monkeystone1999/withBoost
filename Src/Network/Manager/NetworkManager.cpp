@@ -1,7 +1,7 @@
 #include "NetworkManager.hpp"
-#include "../Crypt/DtlsEngine.hpp"
-#include "../Crypt/TlsEngine.hpp"
-#include "NetworkEngine.hpp"
+#include "../../Crypt/DtlsEngine.hpp"
+#include "../../Crypt/TlsEngine.hpp"
+#include "../Engine/NetworkEngine.hpp"
 #include <iostream>
 #include <nlohmann/json.hpp>
 
