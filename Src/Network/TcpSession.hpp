@@ -150,71 +150,8 @@ private:
               }
             }
 
-            // --- CUSTOM IMAGE LOGIC (0x0A) ---
-            if (currentMessage_.type ==
-                    static_cast<uint8_t>(MessageType::IMAGE) &&
-                currentMessage_.length > 0) {
-              try {
-                // Payload contains JSON string. We need to parse jpeg_size.
-                std::string jsonStr(currentMessage_.payload.begin(),
-                                    currentMessage_.payload.end());
-                auto parsed = nlohmann::json::parse(jsonStr);
-                int jpegSize = parsed.value("jpeg_size", 0);
-
-                if (jpegSize > 0) {
-                  // Trigger secondary read for the JPEG payload
-                  // In TLS mode, we read exactly jpegSize bytes of CIPHERTEXT.
-                  // Wait, ToServer.md says: "Payload는 TLS로
-                  // 암호화(Ciphertext)되어 전송됩니다." The client doesn't know
-                  // the exact ciphertext length if it only knows the plaintext
-                  // jpegSize.
-                  // ...
-                  // Let's implement a secondary read into a temporary buffer.
-                  auto jpegBuffer =
-                      std::make_shared<std::vector<uint8_t>>(jpegSize);
-                  boost::asio::async_read(
-                      socket_, boost::asio::buffer(*jpegBuffer),
-                      boost::asio::bind_executor(
-                          strand_,
-                          [this, self, jpegBuffer, jsonStr](
-                              boost::system::error_code ec2, std::size_t) {
-                            if (!ec2) {
-                              std::vector<uint8_t> plainJpeg = *jpegBuffer;
-                              if (tlsSession_) {
-                                plainJpeg = tlsSession_->decrypt(
-                                    reinterpret_cast<char *>(plainJpeg.data()),
-                                    plainJpeg.size());
-                                handleTlsOutput();
-                              }
-
-                              // Combine JSON + \0 + JPEG
-                              currentMessage_.payload.clear();
-                              currentMessage_.payload.insert(
-                                  currentMessage_.payload.end(),
-                                  jsonStr.begin(), jsonStr.end());
-                              currentMessage_.payload.push_back(
-                                  '\0'); // delimiter
-                              currentMessage_.payload.insert(
-                                  currentMessage_.payload.end(),
-                                  plainJpeg.begin(), plainJpeg.end());
-                              currentMessage_.length = static_cast<uint32_t>(
-                                  currentMessage_.payload.size());
-
-                              if (messageHandler_)
-                                messageHandler_(currentMessage_, self);
-
-                              readHeader();
-                            } else {
-                              handleDisconnect();
-                            }
-                          }));
-                  return; // return here to wait for the secondary read
-                }
-              } catch (...) {
-                // Invalid JSON or missing jpeg_size, ignore the rest
-              }
-            }
-            // --- END CUSTOM IMAGE LOGIC ---
+            // IMAGE metadata is now fully handled as JSON and passed to
+            // messageHandler_.
 
             if (messageHandler_ && currentMessage_.length > 0)
               messageHandler_(currentMessage_, self);

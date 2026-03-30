@@ -2,6 +2,7 @@
 #include "INetworkService.hpp"
 #include "MessageProcessor.hpp"
 #include "TcpSession.hpp"
+#include "UdpSession.hpp"
 #include <atomic>
 #include <boost/asio.hpp>
 #include <boost/asio/strand.hpp>
@@ -34,6 +35,7 @@ public:
 
 private:
   std::shared_ptr<anomap::network::TcpSession> session_;
+  std::shared_ptr<anomap::network::UdpSession> udpSession_;
   std::unique_ptr<anomap::network::MessageProcessor> processor_;
   std::unique_ptr<boost::asio::io_context> io_context_;
   std::unique_ptr<

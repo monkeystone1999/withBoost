@@ -113,8 +113,9 @@ void MessageProcessor::handleMeta(const Message &msg) {
 }
 
 void MessageProcessor::handleImage(const Message &msg) {
-  if (callbacks_.onImageReceived && !msg.payload.empty()) {
-    callbacks_.onImageReceived(msg.payload);
+  if (callbacks_.onImageMeta && !msg.payload.empty()) {
+    std::string jsonStr(msg.payload.begin(), msg.payload.end());
+    callbacks_.onImageMeta(jsonStr);
   }
 }
 

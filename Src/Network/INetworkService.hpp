@@ -24,8 +24,10 @@ struct NetworkCallbacks {
   std::function<void(const std::string &)> onAiResult;     // AI body
   std::function<void(const std::string &)> onMetaResult;   // META body
   std::function<void(const std::string &)> onAssign;       // ASSIGN body
-  std::function<void(const std::vector<uint8_t> &)>
-      onImageReceived; // IMAGE body
+  std::function<void(const std::string &)>
+      onImageMeta; // IMAGE JSON body over TLS
+  std::function<void(const std::vector<uint8_t> &, const std::string &)>
+      onImageData; // IMAGE data over UDP DTLS
 };
 
 class INetworkService {

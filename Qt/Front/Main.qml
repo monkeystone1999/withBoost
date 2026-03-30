@@ -36,7 +36,7 @@ Window {
             case "Back":
                 if (stackView.depth > 1)
                     stackView.pop();
-                else{
+                else {
                     stackView.replace(null, "pages/LoginPage.qml");
                 }
                 break;
@@ -66,6 +66,11 @@ Window {
         function onLogoutRequested() {
             if (typeof loginController !== "undefined" && loginController !== null)
                 loginController.logout();
+
+            if (stackView.depth > 1) {
+                stackView.pop(null);
+            }
+            stackView.replace(null, "pages/LoginPage.qml");
         }
     }
 

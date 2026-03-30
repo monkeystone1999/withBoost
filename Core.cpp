@@ -210,6 +210,11 @@ void Core::wireSignals() {
       },
       Qt::DirectConnection);
 
+  // ── ASSIGN (0x08) → UserModel (Pending List) ──────────────────────────
+  QObject::connect(networkBridge_, &NetworkBridge::pendingListReceived,
+                   userModel_, &UserModel::onPendingListReceived,
+                   Qt::QueuedConnection);
+
   // ── META (0x09) → CameraStore (sensor_batch) ───────────────────────────
   QObject::connect(
       networkBridge_, &NetworkBridge::metaResultReceived, networkBridge_,
@@ -261,11 +266,6 @@ void Core::wireSignals() {
       Qt::DirectConnection);
 
   // ── AI (0x06) → AlarmDispatcher + CameraStore (person_count) ──────────
-  //
-  // When:  AI event packet from server.
-  // Format: {"device_id":"SubPi_IP","ip":"IP","person_count":N}
-  // Why:   Routes person_count to CameraStore.updateAiInfo, and alarm events
-  //        to AlarmDispatcher.
   QObject::connect(
       networkBridge_, &NetworkBridge::aiResultReceived, networkBridge_,
       [this](const QString &json) {
@@ -312,86 +312,73 @@ void Core::wireSignals() {
       Qt::DirectConnection);
 
   // ── IMAGE (0x0A) → AiImageModel (GUI Thread via QMetaObject later) ──
-  // Contains JSON metadata + binary JPEG payload. We must extract the JSON
-  // string.
   QObject::connect(
-      networkBridge_, &NetworkBridge::imageResultReceived, networkBridge_,
-      [this](const std::vector<uint8_t> &data) {
-        // Find the null terminator which separates JSON from JPEG
-        auto it = std::find(data.begin(), data.end(), '\0');
-        if (it != data.end()) {
-          std::string jsonStr(data.begin(), it);
-          QByteArray jpegData(reinterpret_cast<const char *>(&*it + 1),
-                              std::distance(it + 1, data.end()));
+      networkBridge_, &NetworkBridge::imageDataReceived, networkBridge_,
+      [this](const std::vector<uint8_t> &data, const QString &meta) {
+        std::string jsonStr = meta.toStdString();
+        QByteArray jpegData(reinterpret_cast<const char *>(data.data()),
+                            data.size());
 
-          // Parse IMAGE metadata + resolve IP → CameraID
-          threadPool_->Submit([this, jsonStr = std::move(jsonStr),
-                               jpegData = std::move(jpegData)] {
-            try {
-              auto parsed = nlohmann::json::parse(jsonStr);
-              std::string ip = parsed.value("ip", "");
-              if (ip.empty())
-                return;
+        threadPool_->Submit([this, jsonStr = std::move(jsonStr),
+                             jpegData = std::move(jpegData)] {
+          try {
+            auto parsed = nlohmann::json::parse(jsonStr);
+            std::string ip = parsed.value("ip", "");
+            if (ip.empty())
+              return;
 
-              QString deviceName =
-                  QString::fromStdString(parsed.value("device_id", ""));
-              int trackId = parsed.value("track_id", 0);
-              int frameIndex = parsed.value("frame_index", 0);
-              int totalFrames = parsed.value("total_frames", 0);
-              long long timestamp = parsed.value("timestamp_ms", 0LL);
+            QString deviceName =
+                QString::fromStdString(parsed.value("device_id", ""));
+            int trackId = parsed.value("track_id", 0);
+            int frameIndex = parsed.value("frame_index", 0);
+            int totalFrames = parsed.value("total_frames", 0);
+            long long timestamp = parsed.value("timestamp_ms", 0LL);
 
-              // Resolve IP → CameraID(s)
-              auto snap = cameraStore_->snapshot();
-              std::vector<std::string> matchedIds;
-              for (const auto &cam : snap) {
-                if (cam.cameraId.rfind(ip, 0) == 0) {
-                  matchedIds.push_back(cam.cameraId);
-                }
+            auto snap = cameraStore_->snapshot();
+            std::vector<std::string> matchedIds;
+            for (const auto &cam : snap) {
+              if (cam.cameraId.rfind(ip, 0) == 0) {
+                matchedIds.push_back(cam.cameraId);
               }
-              // Fallback: if no match, use ip/0
-              if (matchedIds.empty()) {
-                matchedIds.push_back(ip + "/0");
-              }
-
-              // Base64 encode in ThreadPool (current thread)
-              QString base64 = "data:image/jpeg;base64," + jpegData.toBase64();
-
-              for (const auto &cid : matchedIds) {
-                QString qCid = QString::fromStdString(cid);
-                QMetaObject::invokeMethod(
-                    aiImageModel_,
-                    [this, qCid, deviceName, trackId, frameIndex, totalFrames,
-                     timestamp, b64 = std::move(base64)] {
-                      aiImageModel_->onImageReceivedBase64(
-                          qCid, deviceName, trackId, frameIndex, totalFrames,
-                          timestamp, b64);
-                    },
-                    Qt::QueuedConnection);
-              }
-            } catch (const std::exception &e) {
             }
-          });
-        }
+
+            if (matchedIds.empty()) {
+              matchedIds.push_back(ip + "/0");
+            }
+
+            QString base64 = "data:image/jpeg;base64," + jpegData.toBase64();
+
+            for (const auto &cid : matchedIds) {
+              QString qCid = QString::fromStdString(cid);
+              QMetaObject::invokeMethod(
+                  aiImageModel_,
+                  [this, qCid, deviceName, trackId, frameIndex, totalFrames,
+                   timestamp, b64 = std::move(base64)] {
+                    aiImageModel_->onImageReceivedBase64(
+                        qCid, deviceName, trackId, frameIndex, totalFrames,
+                        timestamp, b64);
+                  },
+                  Qt::QueuedConnection);
+            }
+          } catch (const std::exception &e) {
+          }
+        });
       },
       Qt::DirectConnection);
 
   // ── CameraModel → VideoManager (URL synchronization) ─────────────────
-  //
-  // When:  CameraModel emits urlsUpdated after onStoreUpdated.
-  // Why:   VideoManager must create exactly one FFmpeg worker per URL.
-  //        CameraModel is the authoritative list after login.
-  // How:   Direct Qt signal→slot on GUI thread — no threading needed here.
   QObject::connect(cameraModel_, &CameraModel::slotsUpdated, videoManager_,
                    &VideoManager::registerSlots);
   QObject::connect(cameraModel_, &CameraModel::cameraIdsUpdated, videoManager_,
                    &VideoManager::registerCameraIds);
-
-  // F-2: When a camera comes back online, restart its stream worker
   QObject::connect(cameraModel_, &CameraModel::cameraOnline, videoManager_,
                    &VideoManager::restartWorker);
 
   // ── Logout ──────────────────────────────────────────────────────────────
-  // Qt Models (GUI thread — direct slot connections)
+  QObject::connect(login_, &LoginController::logoutRequested, networkBridge_,
+                   &NetworkBridge::disconnect);
+  QObject::connect(login_, &LoginController::logoutRequested, userModel_,
+                   &UserModel::clearAll);
   QObject::connect(login_, &LoginController::logoutRequested, videoManager_,
                    &VideoManager::clearAll);
   QObject::connect(login_, &LoginController::logoutRequested, cameraModel_,
@@ -402,7 +389,6 @@ void Core::wireSignals() {
                    &AlarmController::clearAll);
   QObject::connect(login_, &LoginController::logoutRequested, aiImageModel_,
                    &AiImageModel::clearAll);
-  // Backend Stores (thread-safe, called from GUI thread)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

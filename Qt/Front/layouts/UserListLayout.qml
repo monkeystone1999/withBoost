@@ -11,6 +11,7 @@ Item {
 
     signal userSelected(string userId)
     signal userRightClicked(string userId, real globalX, real globalY)
+    signal approveRequested(string userId)
 
     ListView {
         id: userListView
@@ -23,7 +24,7 @@ Item {
 
         delegate: UserCard {
             width: userListView.width
-            
+
             userId: model.userId
             username: model.username
             email: model.email
@@ -49,6 +50,8 @@ Item {
                 const pos = mapToItem(rootItem, x, y);
                 rootItem.userRightClicked(model.userId, pos.x, pos.y);
             }
+
+            onApproveRequested: userId => rootItem.approveRequested(userId)
         }
 
         ScrollBar.vertical: ScrollBar {

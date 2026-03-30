@@ -43,6 +43,7 @@ add_library(AnoMapSTD STATIC
     # Network/SessionEngine.cpp
     Crypt/DTLS.hpp
     Crypt/TLS.hpp
+    Crypt/MediaDTLS.hpp
 )
 
 # @note 외부 라이브러리(OpenSSL, FFmpeg 등)의 인클루드 경로 설정

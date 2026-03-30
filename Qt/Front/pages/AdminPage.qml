@@ -1,4 +1,4 @@
-import QtQuick
+ï»¿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import AnoMap.Front
@@ -84,7 +84,7 @@ Item {
                 width: (parent.width - 40) / 3
                 height: parent.height
                 title: "Server Temp"
-                unit: "¡ÆC"
+                unit: "Â°C"
                 field: "temp"
                 isServer: true
                 lineColor: "#ffaa00"

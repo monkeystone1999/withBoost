@@ -51,6 +51,7 @@ public:
 
 public slots:
   void onStoreUpdated(std::vector<UserData> snapshot);
+  void onPendingListReceived(const QString &json);
 
 signals:
   void countChanged();

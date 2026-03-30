@@ -1,4 +1,7 @@
 ﻿#include "UserModel.hpp"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 UserModel::UserModel(QObject *parent) : QAbstractListModel(parent) {}
 
@@ -86,6 +89,48 @@ void UserModel::onStoreUpdated(std::vector<UserData> snapshot) {
 
     users_.append(entry);
     byId_[entry.userId] = static_cast<int>(i);
+  }
+
+  endResetModel();
+  emit countChanged();
+}
+
+void UserModel::onPendingListReceived(const QString &json) {
+  const auto doc = QJsonDocument::fromJson(json.toUtf8());
+  if (!doc.isObject())
+    return;
+
+  const auto obj = doc.object();
+  if (!obj.value("success").toBool(false))
+    return;
+
+  const auto usersArray = obj.value("users").toArray();
+
+  beginResetModel();
+  users_.clear();
+  byId_.clear();
+
+  for (int i = 0; i < usersArray.size(); ++i) {
+    const auto u = usersArray[i].toObject();
+
+    UserEntry entry;
+    entry.userId =
+        u.value("username").toString(); // Use username as ID for pending
+    entry.username = u.value("username").toString();
+    entry.email = u.value("email").toString();
+    entry.role = "pending";
+    entry.isOnline = false;
+    entry.lastLogin =
+        QDateTime::fromString(u.value("created").toString(), Qt::ISODateWithMs);
+    if (!entry.lastLogin.isValid()) {
+      entry.lastLogin = QDateTime::fromString(u.value("created").toString(),
+                                              "yyyy-MM-dd HH:mm:ss");
+    }
+    entry.ipAddress = "";
+    entry.activeCameras = 0;
+
+    users_.append(entry);
+    byId_[entry.userId] = i;
   }
 
   endResetModel();

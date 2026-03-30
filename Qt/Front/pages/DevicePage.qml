@@ -1,4 +1,4 @@
-import QtQuick
+ï»¿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import AnoMap.Front
@@ -121,7 +121,7 @@ Item {
                     }
                     StatusCard {
                         title: "Temp"
-                        value: rootItem.selectedIp !== "" && typeof deviceModel !== "undefined" && deviceModel.hasDevice(rootItem.selectedIp) ? deviceModel.temp(rootItem.selectedIp).toFixed(1) + "¡ÆC" : "--"
+                        value: rootItem.selectedIp !== "" && typeof deviceModel !== "undefined" && deviceModel.hasDevice(rootItem.selectedIp) ? deviceModel.temp(rootItem.selectedIp).toFixed(1) + "Â°C" : "--"
                     }
                 }
 
@@ -160,7 +160,7 @@ Item {
                         Layout.fillWidth: true
                         height: 55
                         title: "Tilt"
-                        unit: "¡Æ"
+                        unit: "Â°"
                         lineColor: "#ff44aa"
                         isCamera: true
                         targetCameraId: rootItem.selectedCameraId
@@ -170,7 +170,7 @@ Item {
                         Layout.fillWidth: true
                         height: 55
                         title: "Temp"
-                        unit: "¡ÆC"
+                        unit: "Â°C"
                         lineColor: "#ffaa44"
                         isCamera: true
                         targetCameraId: rootItem.selectedCameraId
@@ -323,19 +323,20 @@ Item {
 
                     // Sensor / Heater Switches (Row)
                     RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 20
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 40
 
                         ColumnLayout {
-                            Layout.fillWidth: true
                             spacing: 8
                             Text {
                                 text: qsTr("Lighting")
                                 color: Theme.isDark ? "#aaaaaa" : "#666666"
                                 font.pixelSize: 14
+                                Layout.alignment: Qt.AlignHCenter
                             }
                             Switch {
                                 id: lightSwitch
+                                Layout.alignment: Qt.AlignHCenter
                                 onToggled: {
                                     if (typeof networkBridge !== "undefined")
                                         networkBridge.sendDevice(rootItem.selectedIp, "", checked ? "on" : "off", "");
@@ -344,31 +345,34 @@ Item {
                         }
 
                         ColumnLayout {
-                            Layout.fillWidth: true
                             spacing: 8
                             Text {
                                 text: qsTr("Heater")
                                 color: Theme.isDark ? "#aaaaaa" : "#666666"
                                 font.pixelSize: 14
+                                Layout.alignment: Qt.AlignHCenter
                             }
                             Switch {
                                 id: helperSwitch
+                                Layout.alignment: Qt.AlignHCenter
                                 onToggled: {
                                     if (typeof networkBridge !== "undefined")
                                         networkBridge.sendDevice(rootItem.selectedIp, "", "", checked ? "on" : "off");
                                 }
                             }
                         }
+
                         ColumnLayout {
-                            Layout.fillWidth: true
                             spacing: 8
                             Text {
                                 text: qsTr("CameraAuto")
                                 color: Theme.isDark ? "#aaaaaa" : "#666666"
                                 font.pixelSize: 14
+                                Layout.alignment: Qt.AlignHCenter
                             }
                             Switch {
                                 id: autoSwitch
+                                Layout.alignment: Qt.AlignHCenter
                                 onToggled: {
                                     if (typeof networkBridge !== "undefined" && rootItem.selectedIp !== "")
                                         networkBridge.sendDevice(rootItem.selectedIp, checked ? "auto" : "unauto", "", "");

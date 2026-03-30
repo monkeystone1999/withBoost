@@ -1,5 +1,5 @@
 #pragma once
-#include "../../Src/Domain/Alarm.hpp"
+#include "Domain/Alarm.hpp"
 #include <QObject>
 #include <QString>
 #include <QVariantList>

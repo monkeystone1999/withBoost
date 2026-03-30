@@ -127,9 +127,27 @@ void NetworkBridge::connectToServer(const QString &host, const QString &port,
         Qt::QueuedConnection);
   };
 
-  cbs.onImageReceived = [this](const std::vector<uint8_t> &data) {
+  cbs.onImageMeta = [this](const std::string &s) {
     QMetaObject::invokeMethod(
-        this, [this, data] { emit imageResultReceived(data); },
+        this,
+        [this, q = QString::fromStdString(s)] { emit imageMetaReceived(q); },
+        Qt::QueuedConnection);
+  };
+
+  cbs.onImageData = [this](const std::vector<uint8_t> &data,
+                           const std::string &meta) {
+    QMetaObject::invokeMethod(
+        this,
+        [this, data, q = QString::fromStdString(meta)] {
+          emit imageDataReceived(data, q);
+        },
+        Qt::QueuedConnection);
+  };
+
+  cbs.onAssign = [this](const std::string &s) {
+    QMetaObject::invokeMethod(
+        this,
+        [this, q = QString::fromStdString(s)] { emit pendingListReceived(q); },
         Qt::QueuedConnection);
   };
 
@@ -159,8 +177,8 @@ void NetworkBridge::sendListPending() {
 }
 
 void NetworkBridge::sendApprove(const QString &targetId) {
-  const auto body = buildJson(
-      {{"action", "approve"}, {"target_username", targetId.toStdString()}});
+  const auto body =
+      buildJson({{"action", "approve"}, {"target_id", targetId.toStdString()}});
   service_->send(static_cast<uint8_t>(0x08), body);
 }
 

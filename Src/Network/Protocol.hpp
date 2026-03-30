@@ -31,6 +31,13 @@ struct PacketHeader {
   MessageType type;
   uint32_t length;
 };
+
+/// Image segment header for UDP transmission
+struct ImageHeader : PacketHeader {
+  uint8_t FrameNumber;
+  uint8_t SequenceNumber;
+  uint8_t MaxSequenceNumber;
+};
 #pragma pack(pop)
 
 } // namespace network

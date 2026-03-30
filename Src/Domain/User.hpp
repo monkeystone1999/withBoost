@@ -1,11 +1,9 @@
 ﻿#pragma once
-#include <string>
 #include <chrono>
+#include <string>
 
-enum class UserRole {
-  User,
-  Admin
-};
+
+enum class UserRole { User, Admin, Pending };
 
 struct UserData {
   std::string userId;
@@ -16,9 +14,6 @@ struct UserData {
   std::chrono::system_clock::time_point lastLogin;
   std::string ipAddress;
   int activeCameras;
-  
-  UserData() 
-    : role(UserRole::User)
-    , isOnline(false)
-    , activeCameras(0) {}
+
+  UserData() : role(UserRole::User), isOnline(false), activeCameras(0) {}
 };

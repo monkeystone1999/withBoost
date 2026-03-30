@@ -17,6 +17,7 @@ Rectangle {
 
     signal tapped
     signal rightTapped(real x, real y)
+    signal approveRequested(string userId)
 
     width: 320
     height: 140
@@ -176,6 +177,30 @@ Rectangle {
                 font.pixelSize: 11
                 Layout.fillWidth: true
                 elide: Text.ElideRight
+            }
+        }
+
+        // Approve Button for Pending Users
+        Button {
+            visible: rootItem.role === "pending"
+            text: qsTr("Approve")
+            Layout.alignment: Qt.AlignRight
+            Layout.topMargin: 4
+            onClicked: rootItem.approveRequested(rootItem.userId)
+
+            contentItem: Text {
+                text: parent.text
+                color: "white"
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            background: Rectangle {
+                implicitWidth: 80
+                implicitHeight: 32
+                color: parent.pressed ? "#388e3c" : "#4caf50"
+                radius: 4
             }
         }
     }

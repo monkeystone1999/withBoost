@@ -55,7 +55,9 @@ signals:
   void deviceStatusReceived(QString json);
   void aiResultReceived(QString json);
   void metaResultReceived(QString json);
-  void imageResultReceived(const std::vector<uint8_t> &payload);
+  void imageMetaReceived(QString json);
+  void pendingListReceived(QString json);
+  void imageDataReceived(const std::vector<uint8_t> &payload, QString meta);
 
 private:
   struct DeviceState {

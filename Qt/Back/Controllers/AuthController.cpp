@@ -159,10 +159,14 @@ void SignupController::onConnected() {
 
 void SignupController::handleSignupSuccess(QString message) {
   setLoading(false);
+  if (bridge_)
+    bridge_->disconnect();
   emit signupSuccess(message);
 }
 
 void SignupController::handleSignupFailed(QString error) {
   setLoading(false);
+  if (bridge_)
+    bridge_->disconnect();
   setError(error);
 }
